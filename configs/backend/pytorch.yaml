@@ -1,0 +1,4 @@
+# @package backend
+device: cpu
+precision: float32
+use_torchscript: false

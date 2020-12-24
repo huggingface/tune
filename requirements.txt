@@ -1,0 +1,7 @@
+omegaconf
+hydra-core
+torch
+tensorflow
+onnxruntime
+psutil
+pandas
