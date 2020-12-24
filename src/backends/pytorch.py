@@ -59,15 +59,15 @@ class PyTorchBackend(Backend):
         else:
             return self._run_pytorch(config)
 
-    def _generate_inputs(self, inputs: List[int]) -> BatchEncoding:
-        return self.tokenizer.prepare_for_model(inputs, return_tensors=TensorType.PYTORCH)
-
     def _run_pytorch(self, config: BenchmarkConfig) -> Benchmark:
         """
         :return:
         """
         benchmark = Benchmark()
-        inputs = self._generate_inputs([self.tokenizer.pad_token_id * config.sequence_length])
+        inputs = self.tokenizer.prepare_for_model(
+            [self.tokenizer.pad_token_id * config.sequence_length],
+            return_tensors=TensorType.PYTORCH
+        )
 
         # Warmup
         for _ in trange(config.warmup_runs, description="Warming up"):
