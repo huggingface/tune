@@ -7,6 +7,7 @@ from omegaconf import OmegaConf
 
 from backends import Backend
 from backends.pytorch import PyTorchConfig
+from backends.tensorflow import TensorflowConfig
 from config import BenchmarkConfig
 
 # Register configurations
@@ -14,6 +15,8 @@ cs = ConfigStore.instance()
 cs.store(name="benchmark", node=BenchmarkConfig)
 cs.store(group="backend", name="pytorch", node=PyTorchConfig)
 cs.store(group="backend", name="torchscript", node=PyTorchConfig)
+cs.store(group="backend", name="tensorflow", node=TensorflowConfig)
+cs.store(group="backend", name="xla", node=TensorflowConfig)
 
 
 @hydra.main(config_path="../configs", config_name="benchmark")

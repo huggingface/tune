@@ -26,14 +26,15 @@ BackendConfigT = TypeVar("BackendConfigT", bound=BackendConfig)
 class Backend(Generic[BackendConfigT], ABC):
     NAME: ClassVar[str]
 
+    @classmethod
+    @abstractmethod
+    def allocate(cls, config: 'BenchmarkConfig'):
+        raise NotImplementedError()
+
     @abstractmethod
     def configure(self, config: BackendConfigT):
         raise NotImplementedError()
 
     @abstractmethod
-    def execute(self, config: BackendConfig) -> Benchmark:
+    def execute(self, config: 'BenchmarkConfig') -> Benchmark:
         raise NotImplementedError()
-
-    @classmethod
-    def allocate(cls, config: 'BenchmarkConfig'):
-        pass
