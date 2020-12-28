@@ -30,4 +30,4 @@ class Benchmark:
         LOGGER.debug(f"Tracked function took: {(end - start)}ns")
 
     def to_pandas(self) -> Series:
-        return to_timedelta(Series(self.results, name="inference_time (s)"), "s")
+        return Series(self.results, name="inference_time_secs")
