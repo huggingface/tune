@@ -46,7 +46,8 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         torch.set_num_threads(config.num_threads)
         LOGGER.info(f"\t+ Number of threads (torch.set_num_threads({config.num_threads}))")
 
-        torch.set_num_interop_threads(config.num_interops_threads)
+        # TODO: Setting this value multiple times between PyTorch & TorchScript runs raise a C error
+        # torch.set_num_interop_threads(config.num_interops_threads)
         LOGGER.info(
             f"\t+ Number of interop threads (torch.set_num_interop_threads({config.num_interops_threads}))"
         )
