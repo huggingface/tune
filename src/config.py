@@ -9,10 +9,11 @@ from backends import BackendConfig
 LOGGER = getLogger("benchmark")
 
 
-@dataclass
+@dataclass()
 class BenchmarkConfig:
+    num_runs: int = MISSING
+    warmup_runs: int = MISSING
     model: str = MISSING
+    batch_size: int = MISSING
     sequence_length: int = MISSING
     backend: BackendConfig = MISSING
-    num_runs: int = 10
-    warmup_runs: int = 5

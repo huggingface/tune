@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from logging import getLogger
-from time import time_ns
+from time import time_ns, perf_counter
 from typing import List
 
 from pandas import Series, to_timedelta
@@ -12,7 +12,7 @@ LOGGER = getLogger("benchmark")
 
 @dataclass
 class Benchmark:
-    results: List[int] = field(default_factory=list)
+    results: List[float] = field(default_factory=list)
 
     @property
     def num_runs(self) -> int:
@@ -20,14 +20,14 @@ class Benchmark:
 
     @contextmanager
     def track(self):
-        start = time_ns()
+        start = perf_counter()
         yield
-        end = time_ns()
+        end = perf_counter()
 
         # Append the time to the buffer
         self.results.append(end - start)
 
-        LOGGER.info(f"Tracked function took: {(end - start)}ns")
+        LOGGER.debug(f"Tracked function took: {(end - start)}ns")
 
     def to_pandas(self) -> Series:
-        return to_timedelta(Series(self.results, name="inference_time (ns)"), "ns")
+        return to_timedelta(Series(self.results, name="inference_time (s)"), "s")

@@ -3,3 +3,4 @@ _target_: backends.pytorch.PyTorchBackend
 name: pytorch
 device: cpu
 precision: float32
+use_torchscript: true

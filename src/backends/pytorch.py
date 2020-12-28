@@ -1,11 +1,10 @@
+from collections import OrderedDict
 from dataclasses import dataclass
 from logging import getLogger
-from typing import List
 
 import torch
-from omegaconf import MISSING
 from tqdm import trange
-from transformers import AutoModel, AutoTokenizer, BatchEncoding, TensorType
+from transformers import AutoModel, AutoTokenizer, TensorType
 
 from backends import Backend, BackendConfig
 from benchmark import Benchmark
@@ -17,11 +16,11 @@ LOGGER = getLogger(BACKEND_NAME)
 
 @dataclass
 class PyTorchConfig(BackendConfig):
-    name: str = BACKEND_NAME
-    use_torchscript: bool = MISSING
+    name: str = "pytorch"
+    use_torchscript: bool = False
 
 
-class PyTorchBackend(Backend):
+class PyTorchBackend(Backend[PyTorchConfig]):
     NAME = BACKEND_NAME
 
     def __init__(self, model: str):
@@ -30,30 +29,36 @@ class PyTorchBackend(Backend):
 
         LOGGER.info(f"Allocated PyTorch Backend for model: {model}")
 
-    def configure(self, config: BenchmarkConfig):
+    @classmethod
+    def allocate(cls, config: BenchmarkConfig):
+        backend = cls(config.model)
+        backend.configure(config.backend)
+
+        return backend
+
+    def configure(self, config: PyTorchConfig):
         LOGGER.info("Configuring PyTorch Benchmark:")
 
         # Disable gradients
         torch.set_grad_enabled(False)
         LOGGER.info("\t+ Disabled gradients")
 
-        torch.set_num_threads(config.backend.num_threads)
-        LOGGER.info(f"\t+ Number of threads (torch.set_num_threads({config.backend.num_threads}))")
+        torch.set_num_threads(config.num_threads)
+        LOGGER.info(f"\t+ Number of threads (torch.set_num_threads({config.num_threads}))")
 
-        torch.set_num_interop_threads(config.backend.num_interops_threads)
+        torch.set_num_interop_threads(config.num_interops_threads)
         LOGGER.info(
-            f"\t+ Number of interop threads (torch.set_num_interop_threads({config.backend.num_interops_threads}))"
+            f"\t+ Number of interop threads (torch.set_num_interop_threads({config.num_interops_threads}))"
         )
 
         self.model.eval()
         LOGGER.info("\t+ Turning eval mode on Module (model.eval())")
 
+        if config.use_torchscript:
+            self.model.config.return_dict = False
+            LOGGER.info("\t+ Disabling dictionary output for TorchScript")
+
     def execute(self, config: BenchmarkConfig) -> Benchmark:
-        if not isinstance(config.backend, PyTorchConfig):
-            raise ValueError(f"config.backend should be instance of PytorchConfig (got: {type(config.backend)})")
-
-        self.configure(config)
-
         if config.backend.use_torchscript:
             return self._run_torchscript(config)
         else:
@@ -63,18 +68,21 @@ class PyTorchBackend(Backend):
         """
         :return:
         """
+        LOGGER.info("Running PyTorch Eager benchmark")
         benchmark = Benchmark()
+
         inputs = self.tokenizer.prepare_for_model(
-            [self.tokenizer.pad_token_id * config.sequence_length],
-            return_tensors=TensorType.PYTORCH
+            [self.tokenizer.pad_token_id] * config.sequence_length,
+            return_tensors=TensorType.PYTORCH,
+            prepend_batch_axis=True
         )
 
         # Warmup
-        for _ in trange(config.warmup_runs, description="Warming up"):
+        for _ in trange(config.warmup_runs, desc="Warming up"):
             self.model(**inputs)
 
         # Run benchmark
-        for _ in trange(config.num_runs, description="Running benchmark"):
+        for _ in trange(config.num_runs, desc="Running benchmark"):
             with benchmark.track():
                 self.model(**inputs)
         return benchmark
@@ -83,5 +91,32 @@ class PyTorchBackend(Backend):
         """
         :return:
         """
-        raise NotImplementedError("TorchScript support is not yet implemented")
+        LOGGER.info("Running TorchScript benchmark")
+        benchmark = Benchmark()
+
+        inputs = self.tokenizer.prepare_for_model(
+            [self.tokenizer.pad_token_id] * config.sequence_length,
+            return_tensors=TensorType.PYTORCH,
+            prepend_batch_axis=True
+        )
+
+        # To be sure inputs will be presented with the right prototype
+        ordered_inputs = OrderedDict({
+            "input_ids": inputs.input_ids,
+            "attention_mask": inputs.attention_mask,
+            "token_type_ids": inputs.token_type_ids,
+        })
+
+        LOGGER.debug("Calling torch JIT on model (optimize=True)")
+        model_scripted = torch.jit.trace(self.model, tuple(ordered_inputs.values()))
+
+        with torch.jit.optimized_execution(True):
+            for _ in trange(config.warmup_runs, desc="Warming up"):
+                model_scripted(*ordered_inputs.values())
+
+            for _ in trange(config.num_runs, desc="Running benchmark"):
+                with benchmark.track():
+                    model_scripted(*ordered_inputs.values())
+
+        return benchmark
 
