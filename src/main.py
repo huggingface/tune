@@ -2,7 +2,7 @@ from typing import Type
 
 import hydra
 from hydra.core.config_store import ConfigStore
-from hydra.utils import get_class, instantiate
+from hydra.utils import get_class
 from omegaconf import OmegaConf
 
 from backends import Backend
@@ -14,16 +14,6 @@ cs = ConfigStore.instance()
 cs.store(name="benchmark", node=BenchmarkConfig)
 cs.store(group="backend", name="pytorch", node=PyTorchConfig)
 cs.store(group="backend", name="torchscript", node=PyTorchConfig)
-
-
-# def factory(config: BenchmarkConfig) -> Backend:
-#     if config.backend.name == PyTorchBackend.NAME:
-#         return PyTorchBackend(config.model)
-#     else:
-#         raise ValueError(
-#             f"Unknown backend {config.backend.name} "
-#             f"possible values are {[PyTorchBackend.NAME]}"
-#         )
 
 
 @hydra.main(config_path="../configs", config_name="benchmark")

@@ -1,6 +1,6 @@
 # @package _group_
 _target_: backends.pytorch.PyTorchBackend
-name: pytorch
+name: torchscript
 device: cpu
 precision: float32
 use_torchscript: true

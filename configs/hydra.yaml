@@ -1,1 +1,0 @@
-output_subdir: ${benchmark.model}_${benchmark.backend}

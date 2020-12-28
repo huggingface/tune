@@ -14,6 +14,6 @@ class BenchmarkConfig:
     num_runs: int = MISSING
     warmup_runs: int = MISSING
     model: str = MISSING
-    batch_size: int = MISSING
+    batch_size: int = 1
     sequence_length: int = MISSING
     backend: BackendConfig = MISSING
