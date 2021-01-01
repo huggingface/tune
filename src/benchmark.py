@@ -1,10 +1,10 @@
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from logging import getLogger
-from time import time_ns, perf_counter
+from time import perf_counter
 from typing import List
 
-from pandas import Series, to_timedelta
+from pandas import Series
 
 
 LOGGER = getLogger("benchmark")

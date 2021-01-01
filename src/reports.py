@@ -1,10 +1,11 @@
 from collections import defaultdict
 from pathlib import Path
 
-import seaborn as sns
-import matplotlib.pyplot as plt
 import pandas as pd
 from argparse import ArgumentParser
+
+from rich.console import Console
+from rich.table import Table
 
 
 def gather_results(folder: Path):
@@ -33,40 +34,40 @@ def gather_results(folder: Path):
     # Concat the dataframes
     dfs = {f: pd.concat(a) for f, a in dfs.items()}
 
-    # dfs = {filter(lambda path: path.startswith(framework), results.)}
-    return dfs
-
-
-def generate_report_by_seq_len(dfs, output_folder: Path):
-    for framework, df in df_by_framework.items():
+    for framework, df in dfs.items():
         df["framework"] = framework
 
-    final_df = pd.concat(dfs.values())
-    final_df["inference_time"] = final_df["inference_time"] * 1000
+    return pd.concat(dfs.values())
 
-    sns.set_theme(style="ticks", color_codes=True)
-    col_order = ["pytorch", "tensorflow", "torchscript", "tensorflow_xla"]
 
-    # Plot data
-    g = sns.catplot(
-        x="seqlen",
-        y="inference_time",
-        hue="framework",
-        data=final_df,
-        kind="bar",
-        height=6,
-        aspect=2,
-        margin_titles=True
+def show_results_in_console(df):
+    grouped_df = df.groupby(["framework", "batch", "seqlen"])
+    (grouped_df["inference_time_secs"].mean() * 1000).reset_index()
+
+    console = Console()
+    table = Table(
+        show_header=True, header_style="bold",
+        title="Inference Time per Framework, Batch Size & Sequence Length"
     )
 
-    # Title and legend
-    g.fig.subplots_adjust(top=0.9)
-    g.fig.suptitle('Inference time for each framework (ms)', fontsize=16)
-    g.set_xlabels("Sequence Length (nb tokens)")
-    g.set_ylabels("Inference Time (ms)")
-    plt.subplots_adjust(bottom=0.1)
-    plt.savefig("reports/inference_time_per_variable_args.svg", format="svg")
-    plt.show()
+    columns = (
+        ("Framework", "framework"),
+        ("Batch Size", "batch"),
+        ("Seq Length", "seqlen"),
+        ("Inference Time (ms)", "inference_time_secs")
+    )
+
+    # Define the columns
+    for (column, _) in columns:
+        table.add_column(column, justify="center")
+
+    # Add rows
+    for name, group in grouped_df:
+        items = name + (round(group.mean()["inference_time_secs"] * 1000, 2), )
+        table.add_row(*[str(item) for item in items])
+
+    # Display the table
+    console.print(table)
 
 
 if __name__ == '__main__':
@@ -88,6 +89,8 @@ if __name__ == '__main__':
         df_by_framework = gather_results(args.results_folder)
 
         # Generate reports
-        generate_report_by_seq_len(df_by_framework, args.output_folder)
+        df_by_framework.to_csv(args.output_folder.joinpath("final_results.csv"))
+
+        show_results_in_console(df_by_framework)
     except ValueError as ve:
         print(ve)
