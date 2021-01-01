@@ -5,3 +5,4 @@ tensorflow
 onnxruntime
 psutil
 pandas
+rich
