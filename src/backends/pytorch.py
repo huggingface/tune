@@ -24,7 +24,7 @@ class PyTorchBackend(Backend[PyTorchConfig]):
     NAME = BACKEND_NAME
 
     def __init__(self, model: str):
-        self.tokenizer = AutoTokenizer.from_pretrained(model)
+        super().__init__(model)
         self.model = AutoModel.from_pretrained(model)
 
         LOGGER.info(f"Allocated PyTorch Backend for model: {model}")
@@ -72,10 +72,15 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         LOGGER.info("Running PyTorch Eager benchmark")
         benchmark = Benchmark()
 
-        inputs = self.tokenizer.prepare_for_model(
-            [self.tokenizer.pad_token_id] * config.sequence_length,
+        dummy_inputs = self._get_dummy_inputs(
+            batch_size=config.batch_size,
+            seq_len=(config.sequence_length - self.tokenizer.num_special_tokens_to_add(pair=False))
+        )
+
+        inputs = self.tokenizer(
+            dummy_inputs,
+            is_split_into_words=True,
             return_tensors=TensorType.PYTORCH,
-            prepend_batch_axis=True
         )
 
         # Warmup
@@ -95,10 +100,15 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         LOGGER.info("Running TorchScript benchmark")
         benchmark = Benchmark()
 
-        inputs = self.tokenizer.prepare_for_model(
-            [self.tokenizer.pad_token_id] * config.sequence_length,
+        dummy_inputs = self._get_dummy_inputs(
+            batch_size=config.batch_size,
+            seq_len=(config.sequence_length - self.tokenizer.num_special_tokens_to_add(pair=False))
+        )
+
+        inputs = self.tokenizer(
+            dummy_inputs,
+            is_split_into_words=True,
             return_tensors=TensorType.PYTORCH,
-            prepend_batch_axis=True
         )
 
         # To be sure inputs will be presented with the right prototype

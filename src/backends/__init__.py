@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from logging import getLogger
-from typing import Generic, TypeVar, ClassVar
+from typing import Generic, TypeVar, ClassVar, List
 
 from hydra.types import TargetConf
 from omegaconf import MISSING
 from psutil import cpu_count
+from transformers import AutoTokenizer
 
 from benchmark import Benchmark
 
@@ -26,6 +27,9 @@ BackendConfigT = TypeVar("BackendConfigT", bound=BackendConfig)
 class Backend(Generic[BackendConfigT], ABC):
     NAME: ClassVar[str]
 
+    def __init__(self, model: str):
+        self.tokenizer = AutoTokenizer.from_pretrained(model)
+
     @classmethod
     @abstractmethod
     def allocate(cls, config: 'BenchmarkConfig'):
@@ -38,3 +42,13 @@ class Backend(Generic[BackendConfigT], ABC):
     @abstractmethod
     def execute(self, config: 'BenchmarkConfig') -> Benchmark:
         raise NotImplementedError()
+
+    def _get_dummy_token(self) -> str:
+        if self.tokenizer.pad_token is not None:
+            return self.tokenizer.pad_token
+        else:
+            return self.tokenizer.convert_tokens_to_string([0])
+
+    def _get_dummy_inputs(self, batch_size: int, seq_len: int) -> List[List[str]]:
+        return [[self._get_dummy_token()] * seq_len] * batch_size
+
