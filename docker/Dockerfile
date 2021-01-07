@@ -1,0 +1,86 @@
+FROM nvidia/cuda:11.1-cudnn8-devel-centos8 as builder
+
+ARG TRANSFORMERS_VERSION=4.1.1
+ARG PYTORCH_VERSION=1.7.1
+ARG TENSORFLOW_VERSION=2.4.0
+ARG MKL_THREADING_LIBRARY=OMP
+
+# Intel MKL repository (through oneAPI repo)
+COPY oneAPI.repo /etc/yum.repos.d/oneAPI.repo
+
+RUN dnf -y update --refresh && \
+    dnf -y install \
+     kernel-devel \
+     openssl-devel \
+     cmake \
+     make \
+     git \
+     python3 \
+     python3-devel
+
+# Intel after everything is up-to-date and installed
+RUN dnf -y install intel-basekit && \
+    dnf clean all
+
+# Bazel for TensorFlow
+RUN cd "/usr/bin" && curl -fLO https://releases.bazel.build/3.7.2/release/bazel-3.7.2-linux-x86_64 && \
+    chmod +x bazel-3.7.2-linux-x86_64 && \
+    mv bazel-3.7.2-linux-x86_64 bazel && \
+    ln -s /usr/bin/python3 /usr/bin/python
+
+# Enable MKL to be found by the compilation process
+ENV PATH=/opt/intel/oneapi/mkl/latest/include:$PATH
+ENV CMAKE_PREFIX_PATH=/opt/intel/oneapi/mkl/latest/lib/intel64:$CMAKE_PREFIX_PATH
+ENV CMAKE_INCLUDE_PATH=/opt/intel/oneapi/mkl/latest/include:$PATH:$CMAKE_INCLUDE_PATH
+
+# TODO: Merge with above when ready
+ENV BUILD_CAFFE2_OPS=OFF \
+    BUILD_CAFFE2=OFF \
+    USE_OPENCV=OFF \
+    BUILD_TEST=OFF \
+    USE_FFMPEG=OFF \
+    USE_LEVELDB=OFF \
+    USE_KINETO=OFF \
+    USE_REDIS=OFF \
+    USE_DISTRIBUTED=OFF \
+    USE_QNNPACK=ON \
+    USE_FBGEMM=ON \
+    USE_NNPACK=ON \
+    USE_MKLDNN=ON \
+    BLAS=MKL \
+    MKLDNN_CPU_RUNTIME=$MKL_THREADING_LIBRARY \
+    TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6+PTX"
+
+# PyTorch
+RUN git clone https://github.com/pytorch/pytorch /opt/pytorch && \
+    cd /opt/pytorch && \
+    git checkout v${PYTORCH_VERSION} && \
+    git submodule update --init --recursive && \
+    python3 -m pip install -r requirements.txt && \
+    python3 setup.py install && \
+    python3 setup.py clean
+
+
+# TensorFlow
+RUN git clone https://github.com/tensorflow/tensorflow /opt/tensorflow && \
+    cd /opt/tensorflow && \
+    git checkout v${TENSORFLOW_VERSION}
+
+COPY .tf_configure.bazelrc /opt/tensorflow/.tf_configure.bazelrc
+RUN cd /opt/tensorflow && \
+    python3 -m pip install -U --user pip numpy wheel && \
+    python3 -m pip install -U --user keras_preprocessing --no-deps && \
+    bazel build \
+    --config=cuda \
+    --config=v2 \
+    --config=opt \
+    --config=mkl \
+    --config=numa \
+    --config=noaws \
+    --config=nogcp \
+    --config=nohdfs \
+    --config=nonccl \
+    //tensorflow/tools/pip_package:build_pip_package && \\
+    ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg && \
+    python3 -m pip install /tmp/tensorflow_pkg/tensorflow-2.4.0-cp36-cp36m-linux_x86_64.whl
+
