@@ -6,3 +6,4 @@ onnxruntime
 psutil
 pandas
 rich
+transformers
