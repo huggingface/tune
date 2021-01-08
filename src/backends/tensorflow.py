@@ -3,7 +3,7 @@ from logging import getLogger
 
 import tensorflow as tf
 from tqdm import trange
-from transformers import AutoTokenizer, TFAutoModel, TensorType
+from transformers import TFAutoModel, TensorType
 
 from backends import Backend, BackendConfig, BackendConfigT
 from benchmark import Benchmark
@@ -11,6 +11,15 @@ from config import BenchmarkConfig
 
 BACKEND_NAME = "tensorflow"
 LOGGER = getLogger("tensorflow")
+
+
+def get_tf_device(device: str) -> str:
+    if device == "cuda":
+        if len(tf.config.experimental.list_physical_devices('GPU')) == 0:
+            raise ValueError(f"No GPU detected, cannot move data to {device}")
+        return "/GPU:0"
+    else:
+        return "/CPU"
 
 
 @dataclass
@@ -64,24 +73,24 @@ class TensorflowBackend(Backend[TensorflowConfig]):
             seq_len=(config.sequence_length - self.tokenizer.num_special_tokens_to_add(pair=False))
         )
 
-        inputs = self.tokenizer(
-            dummy_inputs,
-            is_split_into_words=True,
-            return_tensors=TensorType.TENSORFLOW,
-        )
+        with tf.device(get_tf_device(config.device)):
+            inputs = self.tokenizer(
+                dummy_inputs,
+                is_split_into_words=True,
+                return_tensors=TensorType.TENSORFLOW,
+            )
 
-        # Warmup
-        for _ in trange(config.warmup_runs, desc="Warming up"):
-            self.model(inputs)
-
-        # Run benchmark
-        for _ in trange(config.num_runs, desc="Running benchmark"):
-            with benchmark.track():
+            # Warmup
+            for _ in trange(config.warmup_runs, desc="Warming up"):
                 self.model(inputs)
-        return benchmark
+
+            # Run benchmark
+            for _ in trange(config.num_runs, desc="Running benchmark"):
+                with benchmark.track():
+                    self.model(inputs)
+            return benchmark
 
     def _run_xla(self, config: BenchmarkConfig) -> Benchmark:
-
         @tf.function()
         def xla_model(inputs):
             return self.model(inputs)
@@ -94,18 +103,20 @@ class TensorflowBackend(Backend[TensorflowConfig]):
             seq_len=(config.sequence_length - self.tokenizer.num_special_tokens_to_add(pair=False))
         )
 
-        inputs = self.tokenizer(
-            dummy_inputs,
-            is_split_into_words=True,
-            return_tensors=TensorType.TENSORFLOW,
-        )
+        with tf.device(get_tf_device(config.device)):
+            inputs = self.tokenizer(
+                dummy_inputs,
+                is_split_into_words=True,
+                return_tensors=TensorType.TENSORFLOW,
+            )
 
-        # Warmup
-        for _ in trange(config.warmup_runs, desc="Warming up"):
-            xla_model(inputs)
-
-        # Run benchmark
-        for _ in trange(config.num_runs, desc="Running benchmark"):
-            with benchmark.track():
+            # Warmup
+            for _ in trange(config.warmup_runs, desc="Warming up"):
                 xla_model(inputs)
+
+            # Run benchmark
+            for _ in trange(config.num_runs, desc="Running benchmark"):
+                with benchmark.track():
+                    xla_model(inputs)
+
         return benchmark

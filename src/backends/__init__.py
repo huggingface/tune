@@ -16,9 +16,6 @@ LOGGER = getLogger("backends")
 @dataclass
 class BackendConfig(TargetConf):
     name: str = MISSING
-    device: str = MISSING
-    precision: str = MISSING
-
     num_threads: int = cpu_count()
     num_interops_threads: int = cpu_count()
 

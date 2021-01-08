@@ -18,4 +18,6 @@ class BenchmarkConfig:
     model: str = MISSING
     batch_size: int = 1
     sequence_length: int = MISSING
+    device: str = MISSING
+    precision: str = MISSING
     backend: BackendConfig = MISSING

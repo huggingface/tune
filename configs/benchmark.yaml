@@ -1,7 +1,9 @@
 hydra:
   sweep:
     dir: results/${now:%Y-%m-%d}/${now:%H-%M-%S}
-    subdir: ${model}/${backend.name}/${backend.device}/batch_${batch_size}-seqlen_${sequence_length}
+    subdir: ${model}/${backend.name}/${device}/batch_${batch_size}-seqlen_${sequence_length}
 
 num_runs: 10
 warmup_runs: 3
+device: cpu
+precision: float32

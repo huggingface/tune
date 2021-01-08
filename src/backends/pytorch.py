@@ -83,6 +83,9 @@ class PyTorchBackend(Backend[PyTorchConfig]):
             return_tensors=TensorType.PYTORCH,
         )
 
+        inputs = inputs.to(config.device)
+        self.model = self.model.to(config.device)
+
         # Warmup
         for _ in trange(config.warmup_runs, desc="Warming up"):
             self.model(**inputs)
@@ -91,6 +94,7 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         for _ in trange(config.num_runs, desc="Running benchmark"):
             with benchmark.track():
                 self.model(**inputs)
+
         return benchmark
 
     def _run_torchscript(self, config: BenchmarkConfig) -> Benchmark:
@@ -110,6 +114,9 @@ class PyTorchBackend(Backend[PyTorchConfig]):
             is_split_into_words=True,
             return_tensors=TensorType.PYTORCH,
         )
+
+        inputs.to(config.device)
+        self.model = self.model.to(config.device)
 
         # To be sure inputs will be presented with the right prototype
         ordered_inputs = OrderedDict({

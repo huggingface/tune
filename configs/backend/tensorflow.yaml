@@ -1,6 +1,4 @@
 # @package _group_
 _target_: backends.tensorflow.TensorflowBackend
 name: tensorflow
-device: cpu
-precision: float32
 use_xla: false
