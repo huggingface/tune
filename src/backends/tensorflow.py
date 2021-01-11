@@ -1,3 +1,4 @@
+import contextlib
 from dataclasses import dataclass
 from logging import getLogger
 
@@ -17,9 +18,19 @@ def get_tf_device(device: str) -> str:
     if device == "cuda":
         if len(tf.config.experimental.list_physical_devices('GPU')) == 0:
             raise ValueError(f"No GPU detected, cannot move data to {device}")
-        return "/GPU:0"
+        return tf.DeviceSpec(device_type="GPU")
     else:
-        return "/CPU"
+        return tf.DeviceSpec(device_type="CPU")
+
+
+@contextlib.contextmanager
+def options(options):
+    old_opts = tf.config.optimizer.get_experimental_options()
+    tf.config.optimizer.set_experimental_options(options)
+    try:
+        yield
+    finally:
+        tf.config.optimizer.set_experimental_options(old_opts)
 
 
 @dataclass
@@ -77,8 +88,11 @@ class TensorflowBackend(Backend[TensorflowConfig]):
             inputs = self.tokenizer(
                 dummy_inputs,
                 is_split_into_words=True,
-                return_tensors=TensorType.TENSORFLOW,
+                return_tensors=TensorType.NUMPY,
             )
+
+            # Move tf.constants to GPU ... https://github.com/tensorflow/tensorflow/issues/42242#issuecomment-675590057
+            inputs = {name: tf.identity(t) for name, t in inputs.items()}
 
             # Warmup
             for _ in trange(config.warmup_runs, desc="Warming up"):
@@ -91,7 +105,7 @@ class TensorflowBackend(Backend[TensorflowConfig]):
             return benchmark
 
     def _run_xla(self, config: BenchmarkConfig) -> Benchmark:
-        @tf.function()
+        @tf.function(experimental_compile=True)
         def xla_model(inputs):
             return self.model(inputs)
 
@@ -104,19 +118,29 @@ class TensorflowBackend(Backend[TensorflowConfig]):
         )
 
         with tf.device(get_tf_device(config.device)):
-            inputs = self.tokenizer(
-                dummy_inputs,
-                is_split_into_words=True,
-                return_tensors=TensorType.TENSORFLOW,
-            )
+            with options({
+                "constant_folding": True,
+                "shape_optimization": True,
+                "disable_model_pruning": False,
+                "arithmetic_optimization": True,
+                "function_optimization": True
+            }):
+                inputs = self.tokenizer(
+                    dummy_inputs,
+                    is_split_into_words=True,
+                    return_tensors=TensorType.TENSORFLOW,
+                )
 
-            # Warmup
-            for _ in trange(config.warmup_runs, desc="Warming up"):
-                xla_model(inputs)
+                # Move tf.constants to GPU ... https://github.com/tensorflow/tensorflow/issues/42242#issuecomment-675590057
+                inputs = {name: tf.identity(t) for name, t in inputs.items()}
 
-            # Run benchmark
-            for _ in trange(config.num_runs, desc="Running benchmark"):
-                with benchmark.track():
+                # Warmup
+                for _ in trange(config.warmup_runs, desc="Warming up"):
                     xla_model(inputs)
+
+                # Run benchmark
+                for _ in trange(config.num_runs, desc="Running benchmark"):
+                    with benchmark.track():
+                        xla_model(inputs)
 
         return benchmark
