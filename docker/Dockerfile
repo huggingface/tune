@@ -6,7 +6,7 @@ ARG TENSORFLOW_VERSION=2.4.0
 ARG MKL_THREADING_LIBRARY=OMP
 
 # Intel MKL repository (through oneAPI repo)
-COPY oneAPI.repo /etc/yum.repos.d/oneAPI.repo
+COPY docker/oneAPI.repo /etc/yum.repos.d/oneAPI.repo
 
 RUN dnf -y update --refresh && \
     dnf -y install \
@@ -66,7 +66,7 @@ RUN git clone https://github.com/tensorflow/tensorflow /opt/tensorflow && \
     cd /opt/tensorflow && \
     git checkout v${TENSORFLOW_VERSION}
 
-COPY .tf_configure.bazelrc /opt/tensorflow/.tf_configure.bazelrc
+COPY docker/.tf_configure.bazelrc /opt/tensorflow/.tf_configure.bazelrc
 RUN cd /opt/tensorflow && \
     python3 -m pip install -U --user pip numpy wheel && \
     python3 -m pip install -U --user keras_preprocessing --no-deps && \
@@ -80,7 +80,14 @@ RUN cd /opt/tensorflow && \
     --config=nogcp \
     --config=nohdfs \
     --config=nonccl \
-    //tensorflow/tools/pip_package:build_pip_package && \\
+    //tensorflow/tools/pip_package:build_pip_package
+
+RUN cd /opt/tensorflow && \
     ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg && \
     python3 -m pip install /tmp/tensorflow_pkg/tensorflow-2.4.0-cp36-cp36m-linux_x86_64.whl
+
+COPY . /opt/intel-benchmarks
+
+WORKDIR /opt/intel-benchmarks
+RUN python3 -m pip install -r requirements.txt
 
