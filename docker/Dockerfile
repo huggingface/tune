@@ -84,7 +84,7 @@ RUN cd /opt/tensorflow && \
 
 RUN cd /opt/tensorflow && \
     ./bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg && \
-    python3 -m pip install /tmp/tensorflow_pkg/tensorflow-2.4.0-cp36-cp36m-linux_x86_64.whl
+    python3 -m pip install /tmp/tensorflow_pkg/tensorflow-${TENSORFLOW_VERSION}-cp36-cp36m-linux_x86_64.whl
 
 COPY . /opt/intel-benchmarks
 
