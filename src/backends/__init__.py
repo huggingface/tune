@@ -25,6 +25,7 @@ class Backend(Generic[BackendConfigT], ABC):
     NAME: ClassVar[str]
 
     def __init__(self, model: str):
+        self.model = model
         self.tokenizer = AutoTokenizer.from_pretrained(model)
 
     @classmethod

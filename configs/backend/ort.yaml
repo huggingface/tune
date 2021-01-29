@@ -1,0 +1,4 @@
+# @package _group_
+_target_: backends.ort.OnnxRuntimeBackend
+name: onnxruntime
+opset: 12

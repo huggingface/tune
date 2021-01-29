@@ -6,6 +6,7 @@ from hydra.utils import get_class
 from omegaconf import OmegaConf
 
 from backends import Backend
+from backends.ort import OnnxRuntimeConfig
 from backends.pytorch import PyTorchConfig
 from backends.tensorflow import TensorflowConfig
 from config import BenchmarkConfig
@@ -17,6 +18,7 @@ cs.store(group="backend", name="pytorch", node=PyTorchConfig)
 cs.store(group="backend", name="torchscript", node=PyTorchConfig)
 cs.store(group="backend", name="tensorflow", node=TensorflowConfig)
 cs.store(group="backend", name="xla", node=TensorflowConfig)
+cs.store(group="backend", name="ort", node=OnnxRuntimeConfig)
 
 
 @hydra.main(config_path="../configs", config_name="benchmark")
