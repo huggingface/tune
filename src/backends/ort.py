@@ -52,7 +52,6 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
 
         self.onnx_path = onnx_path
         self.session_opts = SessionOptions()
-        self.session_opts.optimized_model_filepath = Path(onnx_path).with_suffix(".optim.onnx").absolute().as_posix()
 
     @staticmethod
     def convert(model: str, output: Path, opset: int = 12) -> Path:
@@ -103,3 +102,9 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
                 session.run(None, inputs)
         return benchmark
 
+    def clean(self, config: 'BenchmarkConfig'):
+        onnx_path = Path(self.onnx_path)
+
+        if onnx_path.exists():
+            # Care for external data format (multiple file) if exporting bigger model
+            onnx_path.unlink()

@@ -55,6 +55,9 @@ class Backend(Generic[BackendConfigT], ABC):
     def execute(self, config: 'BenchmarkConfig') -> Benchmark:
         raise NotImplementedError()
 
+    def clean(self, config: 'BenchmarkConfig'):
+        pass
+
     def _get_dummy_token(self) -> str:
         if self.tokenizer.pad_token is not None:
             return self.tokenizer.pad_token

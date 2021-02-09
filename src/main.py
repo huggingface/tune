@@ -42,6 +42,7 @@ def run(config: BenchmarkConfig) -> None:
     backend_factory: Type[Backend] = get_class(config.backend._target_)
     backend = backend_factory.allocate(config)
     benchmark = backend.execute(config)
+    backend.clean()
 
     # Export the result
     df = benchmark.to_pandas()
