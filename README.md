@@ -31,7 +31,7 @@ For instance, in order to run a benchmark for ONNX Runtime on CPU with:
 - **Sequence Length = 32**
 
 ```bash
-python3 src/main.py model=bert-base-cased sequence_length=32 +backend=ort device=cpu
+python3 src/main.py model=bert-base-cased sequence_length=32 backend=ort device=cpu
 ```
 
 ## Automatically let Hydra generate all the permutation to cover multiple configurations
@@ -46,7 +46,7 @@ For instance, in order to run multiple benchmarks for PyTorch/TensorFlow/ONNX Ru
 - **Sequence Length = 8,16,32,64,128,256,512**
 
 ```bash
-python3 src/main.py --multirun model=bert-base-cased batch_size=1,4,8 sequence_length=8,16,32,64,128,256,512 +backend=pytorch,tensorflow,ort device=cpu
+python3 src/main.py --multirun model=bert-base-cased batch_size=1,4,8 sequence_length=8,16,32,64,128,256,512 backend=pytorch,tensorflow,ort device=cpu
 ```
 
 ## Overridable configuration properties
@@ -91,6 +91,38 @@ This value is `False` when using backend `tensorflow` and `True` when using back
 - `execution_mode` Mode to execute the ONNX Graph. Can be either:
    - `ORT_SEQUENTIAL` Execute the graph sequentially, without looking for subgraph to execute in parallel.
    - `ORT_PARALLEL` Execute the graph potentially in parallel, looking for non-dependant subgraphs which can be run simultaneously.
+  
+
+## Hydra FAQ 
+
+### Overriding specific environment variables through Hydra's CLI
+
+$ python my_app.py '+hydra.job.env_set={KMP_AFFINITY:granularity\=fine}' --cfg hydra -p hydra.job.env_set
+
+
+### TODO 
+
+### Machine configuration
+- Open MP 
+  - KMP_AFFINITY
+  
+- Intel Open MP
+- Malloc libraries
+  - tcalloc
+    
+- Transparent Huge pages
+- Multi-instance runs
+  - See FastFormer work
+  - taskset / numactl (slide 22.)
+
+- Dynamic sequence length for Batch Size = 1
+
+### Model configuration  
+
+- stick to BERT base cased 
+- sequence length:
+- batch size: 
+- 
     
 ## Results 
 
