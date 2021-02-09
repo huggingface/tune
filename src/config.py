@@ -35,3 +35,4 @@ class BenchmarkConfig:
     device: str = MISSING
     precision: str = MISSING
     backend: BackendConfig = MISSING
+    openmp: str = MISSING

@@ -34,6 +34,11 @@ cs.store(group="backend", name="tensorflow", node=TensorflowConfig)
 cs.store(group="backend", name="xla", node=TensorflowConfig)
 cs.store(group="backend", name="ort", node=OnnxRuntimeConfig)
 
+cs.store(group="openmp", name="core")
+cs.store(group="openmp", name="fine")
+cs.store(group="openmp", name="thread")
+cs.store(group="openmp", name="tile")
+
 
 @hydra.main(config_path="../configs", config_name="benchmark")
 def run(config: BenchmarkConfig) -> None:

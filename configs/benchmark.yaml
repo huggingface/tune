@@ -5,6 +5,7 @@ hydra:
 
 defaults:
   - backend: pytorch
+  - openmp: fine
 
 num_runs: 10
 warmup_runs: 3
