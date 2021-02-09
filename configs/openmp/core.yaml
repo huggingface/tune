@@ -1,4 +1,4 @@
 hydra:
   job:
     env_set:
-      - KMP_AFFINITY:verbose,granularity=core
+      KMP_AFFINITY: verbose,granularity=core
