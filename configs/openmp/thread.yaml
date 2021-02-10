@@ -3,4 +3,4 @@ hydra:
     env_set:
       OMP_MAX_ACTIVE_LEVELS: 1
       KMP_BLOCKTIME: 1
-      KMP_AFFINITY: verbose,granularity=thread
+      KMP_AFFINITY: verbose,granularity=thread,compact,1,0
