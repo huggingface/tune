@@ -1,4 +1,6 @@
 hydra:
   job:
     env_set:
-      KMP_AFFINITY: verbose,granularity=fine
+      OMP_MAX_ACTIVE_LEVELS: 1
+      KMP_BLOCKTIME: 1
+      KMP_AFFINITY: verbose,granularity=fine,compact,1,0
