@@ -55,7 +55,7 @@ def use_transparent_huge_page(enable: bool):
 
     # Turn on (always) / off (never) TBH
     thb_status = "always" if enable else "never"
-    system(f"echo {thb_status} >> {tbh_config_path}")
+    system(f"echo {thb_status} > {tbh_config_path}")
     print(f"Transparent Huge Page enabled: {system(f'cat {tbh_config_path}')}")
 
 
