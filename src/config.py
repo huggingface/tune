@@ -35,3 +35,5 @@ class BenchmarkConfig:
     device: str = MISSING
     precision: str = MISSING
     backend: BackendConfig = MISSING
+    use_huge_page: bool = False
+
