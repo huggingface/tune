@@ -27,6 +27,10 @@ from backends.pytorch import PyTorchConfig
 from backends.tensorflow import TensorflowConfig
 from config import BenchmarkConfig
 
+# Transparent Huge Pages default location
+DEBIAN_TRANSPARENT_PAGES_PATH = "/sys/kernel/mm/transparent_hugepage/enabled"
+REDHAT_TRANSPARENT_PAGES_PATH = "/sys/kernel/mm/redhat_transparent_hugepage/enabled"
+
 # Register configurations
 cs = ConfigStore.instance()
 cs.store(name="benchmark", node=BenchmarkConfig)
@@ -39,18 +43,19 @@ cs.store(group="backend", name="ort", node=OnnxRuntimeConfig)
 
 def use_transparent_huge_page(enable: bool):
     # Look for common TBH places
-    if exists("/sys/kernel/mm/transparent_hugepage/enable"):
-        tbh_config_path = "/sys/kernel/mm/transparent_hugepage/enabled"
-    elif exists("/sys/kernel/mm/redhat_transparent_hugepage/enabled"):
-        tbh_config_path = "/sys/kernel/mm/redhat_transparent_hugepage/enabled"
+    if exists(DEBIAN_TRANSPARENT_PAGES_PATH):
+        tbh_config_path = DEBIAN_TRANSPARENT_PAGES_PATH
+    elif exists(REDHAT_TRANSPARENT_PAGES_PATH):
+        tbh_config_path = REDHAT_TRANSPARENT_PAGES_PATH
     else:
         print("Unable to locate Transparent Huge Page configuration files on your system, no action will be taken.")
         return
 
     print(f"Found Transparent Huge Page configuration files at: {tbh_config_path}")
 
+    # Turn on (always) / off (never) TBH
     thb_status = "always" if enable else "never"
-    system(f"echo {thb_status} >> /sys/kernel/mm/transparent_hugepage/enable")
+    system(f"echo {thb_status} >> {tbh_config_path}")
     print(f"Transparent Huge Page enabled: {system(f'cat {tbh_config_path}')}")
 
 
