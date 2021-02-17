@@ -39,7 +39,7 @@ cs.store(group="backend", name="xla_backend", node=TensorflowConfig)
 cs.store(group="backend", name="ort_backend", node=OnnxRuntimeConfig)
 
 
-def check_tcmalloc(config: BenchmarkConfig):
+def check_tcmalloc():
     if ENV_VAR_TCMALLOC_LIBRARY_PATH not in environ:
         raise ValueError(f"Env var {ENV_VAR_TCMALLOC_LIBRARY_PATH} has to be set to location of libtcmalloc.so")
 
@@ -57,7 +57,7 @@ def check_tcmalloc(config: BenchmarkConfig):
 @hydra.main(config_path="../configs", config_name="benchmark")
 def run(config: BenchmarkConfig) -> None:
     if hasattr(config, "malloc") and "tcmalloc" == config.malloc.name:
-        check_tcmalloc(config)
+        check_tcmalloc()
 
     backend_factory: Type[Backend] = get_class(config.backend._target_)
     backend = backend_factory.allocate(config)
