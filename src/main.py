@@ -49,7 +49,7 @@ def run(config: BenchmarkConfig) -> None:
 
     # Export the result
     df = benchmark.to_pandas()
-    df.to_csv("results.csv", index_label="run")
+    df.to_csv("results.csv", index_label="id")
 
 
 if __name__ == '__main__':

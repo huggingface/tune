@@ -1,0 +1,6 @@
+hydra:
+  job:
+    env_set:
+      LD_PRELOAD=
+
+name: std

@@ -11,6 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+import numpy as np
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -49,7 +50,17 @@ class Benchmark:
         self.throughput = round((len(self.latencies) / duration_ns) * SEC_TO_NS_SCALE, 2)
 
     def to_pandas(self) -> DataFrame:
-        return DataFrame({
-            "latency": self.latencies,
-            "throughput": [self.throughput] * len(self.latencies)
-        })
+        # Compute stats
+        benchmarks_stats = {
+            "nb_forwards": len(self.latencies),
+            "throughput": self.throughput,
+            "latency_mean": np.mean(self.latencies),
+            "latency_std": np.std(self.latencies),
+            "latency_50": np.quantile(self.latencies, 0.5),
+            "latency_90": np.quantile(self.latencies, 0.9),
+            "latency_95": np.quantile(self.latencies, 0.95),
+            "latency_99": np.quantile(self.latencies, 0.99),
+            "latency_999": np.quantile(self.latencies, 0.999),
+        }
+
+        return DataFrame.from_dict(benchmarks_stats, orient="index").transpose()
