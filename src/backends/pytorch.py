@@ -53,23 +53,27 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         return backend
 
     def configure(self, config: PyTorchConfig):
+        super().configure(config)
+
         LOGGER.info("Configuring PyTorch Benchmark:")
 
         # Disable gradients
         torch.set_grad_enabled(False)
         LOGGER.info("\t+ Disabled gradients")
 
-        torch.set_num_threads(config.num_threads)
-        LOGGER.info(f"\t+ Number of threads (torch.set_num_threads({config.num_threads}))")
-
-        # TODO: Setting this value multiple times between PyTorch & TorchScript runs raise a C error
-        # torch.set_num_interop_threads(config.num_interops_threads)
-        LOGGER.info(
-            f"\t+ Number of interop threads (torch.set_num_interop_threads({config.num_interops_threads}))"
-        )
-
         self.model.eval()
         LOGGER.info("\t+ Turning eval mode on Module (model.eval())")
+
+        if config.num_threads is not None:
+            torch.set_num_threads(config.num_threads)
+            LOGGER.info(f"\t+ Number of threads (torch.set_num_threads({config.num_threads}))")
+
+        if config.num_interops_threads is not None:
+            # TODO: Setting this value multiple times between PyTorch & TorchScript runs raise a C error
+            # torch.set_num_interop_threads(config.num_interops_threads)
+            LOGGER.info(
+                f"\t+ Number of interop threads (torch.set_num_interop_threads({config.num_interops_threads}))"
+            )
 
         if config.use_torchscript:
             self.model.config.return_dict = False

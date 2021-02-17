@@ -72,10 +72,16 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
         assert config.graph_optimisation_level in ALL_GRAPH_OPTIMIZATION_LEVELS, f"Unknown {config.graph_optimisation_level}"
         assert config.execution_mode in ALL_EXECUTION_MODE, f"Unknown {config.execution_mode}"
 
+        super().configure(config)
+
         self.session_opts.execution_mode = config.execution_mode
         self.session_opts.graph_optimization_level = config.graph_optimisation_level
-        self.session_opts.inter_op_num_threads = config.num_interops_threads
-        self.session_opts.intra_op_num_threads = config.num_threads
+
+        if config.num_threads is not None:
+            self.session_opts.intra_op_num_threads = config.num_threads
+
+        if config.num_interops_threads is not None:
+            self.session_opts.inter_op_num_threads = config.num_interops_threads
 
     def execute(self, config: 'BenchmarkConfig') -> Benchmark:
         benchmark = Benchmark()

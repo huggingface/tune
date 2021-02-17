@@ -1,4 +1,5 @@
-# @package _group_
 _target_: backends.pytorch.PyTorchBackend
 name: torchscript
 use_torchscript: true
+num_threads: null
+num_interops_threads: null

@@ -69,21 +69,26 @@ class TensorflowBackend(Backend[TensorflowConfig]):
         return TensorflowBackend(config.model)
 
     def configure(self, config: BackendConfigT):
+        super().configure(config)
+
         LOGGER.info("Configuring TensorFlow Benchmark:")
 
-        tf.config.threading.set_inter_op_parallelism_threads(config.num_interops_threads)
-        LOGGER.info(
-            f"\t+ Number of inter op threads ("
-            f"tf.config.threading.set_inter_op_parallelism_threads({config.num_interops_threads})"
-            f")"
-        )
+        if config.num_threads is not None:
+            tf.config.threading.set_intra_op_parallelism_threads(config.num_threads)
+            LOGGER.info(
+                f"\t+ Number of intra op threads ("
+                f"tf.config.threading.set_intra_op_parallelism_threads({config.num_threads})"
+                f")"
+            )
 
-        tf.config.threading.set_intra_op_parallelism_threads(config.num_threads)
-        LOGGER.info(
-            f"\t+ Number of intra op threads ("
-            f"tf.config.threading.set_intra_op_parallelism_threads({config.num_threads})"
-            f")"
-        )
+        if config.num_interops_threads is not None:
+            tf.config.threading.set_inter_op_parallelism_threads(config.num_interops_threads)
+            LOGGER.info(
+                f"\t+ Number of inter op threads ("
+                f"tf.config.threading.set_inter_op_parallelism_threads({config.num_interops_threads})"
+                f")"
+            )
+
 
     def execute(self, config: BenchmarkConfig) -> Benchmark:
         if not config.backend.use_xla:

@@ -15,7 +15,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from logging import getLogger
-from typing import Generic, TypeVar, ClassVar, List
+from typing import Generic, TypeVar, ClassVar, List, Optional
 
 from hydra.types import TargetConf
 from omegaconf import MISSING
@@ -30,8 +30,8 @@ LOGGER = getLogger("backends")
 @dataclass
 class BackendConfig(TargetConf):
     name: str = MISSING
-    num_threads: int = cpu_count()
-    num_interops_threads: int = cpu_count()
+    num_threads: Optional[int] = None
+    num_interops_threads: Optional[int] = None
 
 
 BackendConfigT = TypeVar("BackendConfigT", bound=BackendConfig)
@@ -47,9 +47,14 @@ class Backend(Generic[BackendConfigT], ABC):
     def allocate(cls, config: 'BenchmarkConfig'):
         raise NotImplementedError()
 
-    @abstractmethod
     def configure(self, config: BackendConfigT):
-        raise NotImplementedError()
+        if config.num_interops_threads is not None:
+            if config.num_interops_threads == -1:
+                config.num_interops_threads = cpu_count()
+
+        if config.num_threads is not None:
+            if config.num_threads == -1:
+                config.num_threads = cpu_count()
 
     @abstractmethod
     def execute(self, config: 'BenchmarkConfig') -> Benchmark:
