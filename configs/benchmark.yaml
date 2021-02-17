@@ -5,7 +5,7 @@ hydra:
 defaults:
   - backend: pytorch
 
-num_runs: 10
-warmup_runs: 3
+benchmark_duration: 5
+warmup_runs: 5
 device: cpu
 precision: float32

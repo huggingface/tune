@@ -15,33 +15,41 @@
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from logging import getLogger
-from time import perf_counter
+from time import perf_counter_ns
 from typing import List
 
-from pandas import Series
+from pandas import DataFrame
 
+from utils import SEC_TO_NS_SCALE
 
 LOGGER = getLogger("benchmark")
 
 
 @dataclass
 class Benchmark:
-    results: List[float] = field(default_factory=list)
+    latencies: List[float] = field(default_factory=list)
+    throughput: float = float("inf")
 
     @property
     def num_runs(self) -> int:
-        return len(self.results)
+        return len(self.latencies)
 
     @contextmanager
     def track(self):
-        start = perf_counter()
+        start = perf_counter_ns()
         yield
-        end = perf_counter()
+        end = perf_counter_ns()
 
         # Append the time to the buffer
-        self.results.append(end - start)
+        self.latencies.append(end - start)
 
         LOGGER.debug(f"Tracked function took: {(end - start)}ns")
 
-    def to_pandas(self) -> Series:
-        return Series(self.results, name="inference_time_secs")
+    def finalize(self, duration_ns: int):
+        self.throughput = round((len(self.latencies) / duration_ns) * SEC_TO_NS_SCALE, 2)
+
+    def to_pandas(self) -> DataFrame:
+        return DataFrame({
+            "latency": self.latencies,
+            "throughput": [self.throughput] * len(self.latencies)
+        })

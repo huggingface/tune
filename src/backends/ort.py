@@ -22,6 +22,7 @@ from transformers.convert_graph_to_onnx import convert as onnx_convert
 
 from backends import BackendConfig, Backend
 from benchmark import Benchmark
+from utils import SEC_TO_NS_SCALE
 
 
 ALL_GRAPH_OPTIMIZATION_LEVELS = {
@@ -97,9 +98,12 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
             session.run(None, inputs)
 
         # Run benchmark
-        for _ in trange(config.num_runs, desc="Running benchmark"):
+        benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
+        while sum(benchmark.latencies) < benchmark_duration_ns:
             with benchmark.track():
                 session.run(None, inputs)
+
+        benchmark.finalize(benchmark_duration_ns)
         return benchmark
 
     def clean(self, config: 'BenchmarkConfig'):

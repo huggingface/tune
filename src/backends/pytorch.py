@@ -18,11 +18,13 @@ from logging import getLogger
 
 import torch
 from tqdm import trange
-from transformers import AutoModel, AutoTokenizer, TensorType
+from transformers import AutoModel, TensorType
 
 from backends import Backend, BackendConfig
 from benchmark import Benchmark
 from config import BenchmarkConfig
+from utils import SEC_TO_NS_SCALE
+
 
 BACKEND_NAME = "pytorch"
 LOGGER = getLogger(BACKEND_NAME)
@@ -105,9 +107,12 @@ class PyTorchBackend(Backend[PyTorchConfig]):
             self.model(**inputs)
 
         # Run benchmark
-        for _ in trange(config.num_runs, desc="Running benchmark"):
+        benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
+        while sum(benchmark.latencies) < benchmark_duration_ns:
             with benchmark.track():
                 self.model(**inputs)
+
+        benchmark.finalize(benchmark_duration_ns)
 
         return benchmark
 
@@ -146,9 +151,11 @@ class PyTorchBackend(Backend[PyTorchConfig]):
             for _ in trange(config.warmup_runs, desc="Warming up"):
                 model_scripted(*ordered_inputs.values())
 
-            for _ in trange(config.num_runs, desc="Running benchmark"):
+            benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
+            while sum(benchmark.latencies) < benchmark_duration_ns:
                 with benchmark.track():
                     model_scripted(*ordered_inputs.values())
 
+            benchmark.finalize(benchmark_duration_ns)
         return benchmark
 

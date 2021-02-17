@@ -26,14 +26,34 @@ LOGGER = getLogger("benchmark")
 
 @dataclass()
 class BenchmarkConfig:
+    # Store the transformers version used during the benchmark
     transformers_version: str = transformers_version
-    num_runs: int = MISSING
-    warmup_runs: int = MISSING
-    model: str = MISSING
-    batch_size: int = 1
-    sequence_length: int = MISSING
-    device: str = MISSING
-    precision: str = MISSING
+
+    # Number of forward pass to run before recording any performance counters.
+    warmup_runs: int = 5
+
+    # Duration in seconds the benchmark will collect performance counters
+    benchmark_duration: int = 5
+
+    # The backend to use for recording timing (pytorch, torchscript, tensorflow, xla, onnxruntime)
     backend: BackendConfig = MISSING
+
+    # Name of the model used for the benchmark
+    model: str = MISSING
+
+    # CPU or CUDA device to run inference on
+    device: str = MISSING
+
+    # The dtype of the model to run inference with (float32, float16, int8, bfloat16)
+    precision: str = MISSING
+
+    # Use Transparent Huge Page mechanis to increase CPU cache hit probability
     use_huge_page: bool = False
+
+    # Number of sample given to the model at each forward
+    batch_size: int = 1
+
+    # The length of the sequence (in tokens) given to the model
+    sequence_length: int = MISSING
+
 

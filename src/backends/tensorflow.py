@@ -23,6 +23,8 @@ from transformers import TFAutoModel, TensorType
 from backends import Backend, BackendConfig, BackendConfigT
 from benchmark import Benchmark
 from config import BenchmarkConfig
+from utils import SEC_TO_NS_SCALE
+
 
 BACKEND_NAME = "tensorflow"
 LOGGER = getLogger("tensorflow")
@@ -113,9 +115,12 @@ class TensorflowBackend(Backend[TensorflowConfig]):
                 self.model(inputs)
 
             # Run benchmark
-            for _ in trange(config.num_runs, desc="Running benchmark"):
+            benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
+            while sum(benchmark.latencies) < benchmark_duration_ns:
                 with benchmark.track():
                     self.model(inputs)
+
+            benchmark.finalize(benchmark_duration_ns)
             return benchmark
 
     def _run_xla(self, config: BenchmarkConfig) -> Benchmark:
@@ -153,8 +158,10 @@ class TensorflowBackend(Backend[TensorflowConfig]):
                     xla_model(inputs)
 
                 # Run benchmark
-                for _ in trange(config.num_runs, desc="Running benchmark"):
+                benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
+                while sum(benchmark.latencies) < benchmark_duration_ns:
                     with benchmark.track():
                         xla_model(inputs)
 
+                benchmark.finalize(benchmark_duration_ns)
         return benchmark
