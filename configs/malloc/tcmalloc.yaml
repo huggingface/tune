@@ -1,6 +1,4 @@
-hydra:
-  job:
-    env_set:
-      LD_PRELOAD=${env:TCMALLOC_LIBRARY_PATH}
+defaults:
+  - ld_preload/tcmalloc
 
 name: tcmalloc
