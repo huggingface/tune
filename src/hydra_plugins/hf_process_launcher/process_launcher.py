@@ -24,6 +24,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 import logging
+
+from multiprocess.connection import Pipe
 from multiprocess.context import Process
 from pathlib import Path
 from typing import Sequence, Optional, Any, List
@@ -32,7 +34,7 @@ from hydra import TaskFunction
 from hydra.core.config_loader import ConfigLoader
 from hydra.core.singleton import Singleton
 
-from hydra.core.utils import JobReturn, setup_globals, configure_log, filter_overrides
+from hydra.core.utils import JobReturn, setup_globals, configure_log
 from hydra.plugins.launcher import Launcher
 from omegaconf import DictConfig
 
@@ -73,7 +75,7 @@ class ProcessLauncher(Launcher):
 
         singleton_state = Singleton.get_state()
 
-        runs = []
+        runs, (pipe_reader, pipe_writer) = [], Pipe(duplex=False)
         for idx, overrides in enumerate(job_overrides):
             job_kwargs = {
                 "idx": initial_job_idx + idx,
@@ -81,11 +83,23 @@ class ProcessLauncher(Launcher):
                 "config_loader": self.config_loader,
                 "config": self.config,
                 "task_function": self.task_function,
-                "singleton_state": singleton_state
+                "singleton_state": singleton_state,
+                "pipe": pipe_writer
             }
+
             p = Process(target=execute_job, kwargs=job_kwargs)
-            p.start()
-            p.join()
+            try:
+
+                p.start()
+                job_result = pipe_reader.recv()
+
+                # Retrieve from pipe
+                if isinstance(job_result, JobReturn):
+                    runs.append(job_result)
+                else:
+                    log.warning(f"Error while running benchmark [{idx}]: {overrides} -> {job_result}")
+            finally:
+                p.join()
 
         assert isinstance(runs, List)
         for run in runs:

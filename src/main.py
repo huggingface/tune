@@ -11,7 +11,6 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from logging import getLogger
 from typing import Type
 
 import hydra
@@ -22,9 +21,6 @@ from backends.ort import OnnxRuntimeConfig
 from backends.pytorch import PyTorchConfig
 from backends.tensorflow import TensorflowConfig
 from config import BenchmarkConfig
-
-
-LOGGER = getLogger("benchmark")
 
 
 # Register configurations
@@ -39,8 +35,11 @@ cs.store(group="backend", name="ort_backend", node=OnnxRuntimeConfig)
 
 @hydra.main(config_path="../configs", config_name="benchmark")
 def run(config: BenchmarkConfig) -> None:
+    from logging import getLogger
     from os import environ
     from hydra.utils import get_class
+
+    LOGGER = getLogger("benchmark")
 
     if hasattr(config, "malloc") and "tcmalloc" == config.malloc.name:
         from utils import check_tcmalloc

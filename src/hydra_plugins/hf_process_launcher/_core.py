@@ -18,6 +18,7 @@ from hydra.core.config_loader import ConfigLoader
 from hydra.core.hydra_config import HydraConfig
 from hydra.core.singleton import Singleton
 from hydra.core.utils import JobReturn, setup_globals, run_job
+from multiprocess.connection import Connection
 from omegaconf import DictConfig, open_dict
 
 
@@ -28,6 +29,7 @@ def execute_job(
         config: DictConfig,
         task_function: TaskFunction,
         singleton_state: Dict[Any, Any],
+        pipe: Connection
 ) -> JobReturn:
     """Calls `run_job` in parallel"""
     setup_globals()
@@ -39,11 +41,15 @@ def execute_job(
         sweep_config.hydra.job.num = idx
     HydraConfig.instance().set_config(sweep_config)
 
-    ret = run_job(
-        config=sweep_config,
-        task_function=task_function,
-        job_dir_key="hydra.sweep.dir",
-        job_subdir_key="hydra.sweep.subdir",
-    )
-
-    return ret
+    try:
+        ret = run_job(
+            config=sweep_config,
+            task_function=task_function,
+            job_dir_key="hydra.sweep.dir",
+            job_subdir_key="hydra.sweep.subdir",
+        )
+    except Exception as e:
+        ret = e
+    finally:
+        pipe.send(ret)
+        return ret
