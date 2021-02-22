@@ -1,10 +1,13 @@
+defaults:
+  - malloc: std
+  - backend: pytorch
+  - override hydra/launcher: process
+
+
 hydra:
   sweep:
     dir: results/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
-defaults:
-  - malloc: std
-  - backend: pytorch
 
 benchmark_duration: 5
 warmup_runs: 5

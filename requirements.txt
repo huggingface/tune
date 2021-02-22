@@ -1,5 +1,6 @@
 omegaconf
 hydra-core
+hydra-joblib-launcher
 torch
 tensorflow
 onnxruntime
@@ -7,3 +8,4 @@ psutil
 pandas
 rich
 transformers
+multiprocess
