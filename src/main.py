@@ -38,6 +38,7 @@ def run(config: BenchmarkConfig) -> None:
     from logging import getLogger
     from os import environ
     from hydra.utils import get_class
+    from utils import MANAGED_ENV_VARIABLES
 
     LOGGER = getLogger("benchmark")
 
@@ -46,7 +47,8 @@ def run(config: BenchmarkConfig) -> None:
         check_tcmalloc()
 
     # Print LD_PRELOAD information to ensure it has been correctly setup by launcher
-    LOGGER.debug(f"[ENV] LD_PRELOAD: {environ.get('LD_PRELOAD')}")
+    for env_var in MANAGED_ENV_VARIABLES:
+        LOGGER.info(f"[ENV] {env_var}: {environ.get(env_var)}")
 
     backend_factory: Type[Backend] = get_class(config.backend._target_)
     backend = backend_factory.allocate(config)

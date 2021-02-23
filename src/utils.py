@@ -17,6 +17,14 @@ SEC_TO_NS_SCALE = 1000000000
 
 # Environment variables constants
 ENV_VAR_TCMALLOC_LIBRARY_PATH = "TCMALLOC_LIBRARY_PATH"
+MANAGED_ENV_VARIABLES = {
+    "LD_PRELOAD",
+    "KMP_AFFINITY",
+    "KMP_BLOCKTIME",
+    "KMP_BLOCKTIME",
+    "OMP_MAX_ACTIVE_LEVELS",
+    "OMP_NUM_THREADS",
+}
 
 
 def check_tcmalloc():
