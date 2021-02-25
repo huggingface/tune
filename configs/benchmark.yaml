@@ -11,8 +11,8 @@ hydra:
 
 
 model: bert-base-cased
-batch-size: 1
-sequence-length: 128
+batch_size: 1
+sequence_length: 128
 benchmark_duration: 5
 warmup_runs: 5
 device: cpu
