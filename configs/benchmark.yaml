@@ -10,6 +10,9 @@ hydra:
     dir: results/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
 
+model: bert-base-cased
+batch-size: 1
+sequence-length: 128
 benchmark_duration: 5
 warmup_runs: 5
 device: cpu
