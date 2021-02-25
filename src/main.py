@@ -73,6 +73,9 @@ def run(config: BenchmarkConfig) -> None:
     # Get the set of threads affinity for this specific process
     cpu_bindings = get_instances_with_cpu_binding(config.num_threads_per_instance)
 
+    if len(cpu_bindings):
+        LOGGER.info(f"Starting Multi-Instance inference setup: {len(cpu_bindings)} instances")
+
     # Allocate all the model instances
     reader, writer = Pipe(False)
     benchmarks, workers = [], []
