@@ -60,7 +60,7 @@ def run(config: BenchmarkConfig) -> None:
         # Configure CPU threads affinity for current process
         system(f"taskset -p -c {','.join(map(str, core_binding))} {getpid()}")
 
-        LOGGER.info(f"[TASKSET] Set CPU affinity to:  {core_binding} (pid={getpid()})")
+        LOGGER.info(f"[TASKSET] Set CPU affinity to: {core_binding} (pid={getpid()})")
 
         backend_factory: Type[Backend] = get_class(config.backend._target_)
         backend = backend_factory.allocate(config)
@@ -71,7 +71,7 @@ def run(config: BenchmarkConfig) -> None:
         pipe_out.send(benchmark)
 
     # Get the set of threads affinity for this specific process
-    instance_core_bindings = get_instances_with_cpu_binding(config.num_threads_per_instance)
+    instance_core_bindings = get_instances_with_cpu_binding(config.num_threads_per_instance, config.num_instances)
 
     if len(instance_core_bindings) > 0:
         LOGGER.info(f"Starting Multi-Instance inference setup: {len(instance_core_bindings)} instances")

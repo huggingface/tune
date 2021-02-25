@@ -75,12 +75,19 @@ def cpu_count_physical():
     return result, physical_processor_ids
 
 
-def get_instances_with_cpu_binding(num_threads: int) -> List[List[int]]:
+def get_instances_with_cpu_binding(num_threads: int = -1, num_instances: int = 1) -> List[List[int]]:
+    """
+    :param num_threads: Number of threads to use per instances, -1 means "use all the CPU cores"
+    :param num_instances: Number of model instances to distribute CPU cores for
+    :return: List[List[int]] Per instance list of CPU core affinity
+    """
     num_cores, processor_list = cpu_count_physical()
 
     # Use all the cores
     if num_threads < 0:
         num_threads = num_cores
 
-    num_instances = (num_cores // num_threads)
-    return [[(instance * num_threads) + i for i in range(num_threads)] for instance in range(num_instances)]
+    return [
+        [(instance * num_threads) + i for i in range(num_threads)]
+        for instance in range(num_instances)
+    ]

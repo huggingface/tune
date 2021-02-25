@@ -30,10 +30,10 @@ class BenchmarkConfig:
     transformers_version: str = transformers_version
 
     # Number of forward pass to run before recording any performance counters.
-    warmup_runs: int = 5
+    warmup_runs: int = MISSING
 
     # Duration in seconds the benchmark will collect performance counters
-    benchmark_duration: int = 5
+    benchmark_duration: int = MISSING
 
     # The backend to use for recording timing (pytorch, torchscript, tensorflow, xla, onnxruntime)
     backend: BackendConfig = MISSING
@@ -48,14 +48,16 @@ class BenchmarkConfig:
     precision: str = MISSING
 
     # Use Transparent Huge Page mechanis to increase CPU cache hit probability
-    use_huge_page: bool = False
+    use_huge_page: bool = MISSING
 
     # Number of sample given to the model at each forward
-    batch_size: int = 1
+    batch_size: int = MISSING
 
     # The length of the sequence (in tokens) given to the model
     sequence_length: int = MISSING
 
     # Multi instances settings #
+    num_instances: int = MISSING
+
     # Number of threads per instances
-    num_threads_per_instance: int = -1
+    num_threads_per_instance: int = MISSING
