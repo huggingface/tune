@@ -11,9 +11,6 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from multiprocessing import Pipe
-from multiprocessing.connection import Connection
-from multiprocessing.context import Process
 from typing import Type
 
 import hydra
@@ -39,7 +36,11 @@ cs.store(group="backend", name="ort_backend", node=OnnxRuntimeConfig)
 
 @hydra.main(config_path="../configs", config_name="benchmark")
 def run(config: BenchmarkConfig) -> None:
+    # TODO: Check why imports are not persisted when doing swaps
     from logging import getLogger
+    from multiprocessing import Pipe
+    from multiprocessing.connection import Connection
+    from multiprocessing.context import Process
     from os import environ
     from hydra.utils import get_class
     from utils import MANAGED_ENV_VARIABLES
@@ -70,6 +71,8 @@ def run(config: BenchmarkConfig) -> None:
         process = Process(target=allocate_and_run_model, kwargs={"pipe_out": writer})
         process.start()
 
+        workers.append(process)
+
     # Wait for all workers
     for worker in workers:
         worker.join()
@@ -78,7 +81,11 @@ def run(config: BenchmarkConfig) -> None:
         benchmarks.append(benchmark)
 
     # Export the result
-    benchmark = Benchmark.merge(benchmarks)
+    if len(benchmarks) > 1:
+        benchmark = Benchmark.merge(benchmarks)
+    else:
+        benchmark = benchmarks[0]
+
     df = benchmark.to_pandas()
     df.to_csv("results.csv", index_label="id")
 
