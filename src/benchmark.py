@@ -29,11 +29,28 @@ LOGGER = getLogger("benchmark")
 @dataclass
 class Benchmark:
     latencies: List[float] = field(default_factory=list)
-    throughput: float = float("inf")
+    throughput: float = float("-inf")
 
     @property
     def num_runs(self) -> int:
         return len(self.latencies)
+
+    @staticmethod
+    def merge(benchmarks: List['Benchmark']) -> 'Benchmark':
+        latencies, throughputs = [], []
+        for b in benchmarks:
+
+            assert len(b.latencies) > 0, "Empty benchmark (0 latency measurements recorded)"
+            assert b.throughput > 0., f"Benchmark has not been finalized, throughput < 0 ({b.throughput})"
+
+            latencies += b.latencies
+            throughputs.append(b.throughput)
+
+        # Return all the latencies measured and the mean throughput over all instances
+        return Benchmark(
+            latencies,
+            sum(throughputs) / len(throughputs)
+        )
 
     @contextmanager
     def track(self):
