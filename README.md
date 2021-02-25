@@ -63,6 +63,11 @@ python3 src/main.py --multirun model=bert-base-cased batch_size=1,4,8 sequence_l
 - `num_interops_threads`: Number of threads to use for inter-operation within OpenMP parallel section (`-1` Detect the number of CPU cores and use this value)
 - `warmup_runs`: Number of warmup forward to execute before recording any benchmarking results. (Especially useful to preallocate memory buffers).
 - `num_runs`: Number of forward call to execute to collect benchmarking results. These runs are executed after `warmup_runs`.
+- `num_instances`: Number of independent models to allocate (default: 1)
+- `num_threads_per_instance`: Number of threads to attach to each model instance
+- `openmp`: Tune openmp environment variables (KMP_AFFINITY, KMP_BLOCKTIME, OMP_MAX_ACTIVE_LEVELS)
+- `openmp_backend`: Which OpenMP library implementation to use (GNU or Intel through INTEL_OPENMP_LIBRARY_PATH env var) 
+- `malloc`: Which memory allocation library implementation to use (std or tcmalloc through TCMALLOC_LIBRARY_PATH env var) 
 
 
 ## Backend specific configuration properties
@@ -104,31 +109,6 @@ This value is `False` when using backend `tensorflow` and `True` when using back
 
 $ python my_app.py '+hydra.job.env_set={KMP_AFFINITY:granularity\=fine}' --cfg hydra -p hydra.job.env_set
 
-
-### TODO 
-
-### Machine configuration
-- Open MP 
-  - KMP_AFFINITY
-  
-- Intel Open MP
-- Malloc libraries
-  - tcalloc
-    
-- Transparent Huge pages
-- Multi-instance runs
-  - See FastFormer work
-  - taskset / numactl (slide 22.)
-
-- Dynamic sequence length for Batch Size = 1
-
-### Model configuration  
-
-- stick to BERT base cased 
-- sequence length:
-- batch size: 
-- 
-    
 ## Results 
 
 We provide some results as part of this repository for easy access. 
