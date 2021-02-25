@@ -1,7 +1,8 @@
 defaults:
   - malloc: std
-  - backend: pytorch
   - openmp: none
+  - openmp_backend: gnu
+  - backend: pytorch
   - override hydra/launcher: process
 
 

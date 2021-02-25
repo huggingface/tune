@@ -1,0 +1,4 @@
+defaults:
+  - ld_preload/intel
+
+name: intel

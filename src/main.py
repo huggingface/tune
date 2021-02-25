@@ -52,6 +52,10 @@ def run(config: BenchmarkConfig) -> None:
         from utils import check_tcmalloc
         check_tcmalloc()
 
+    if hasattr(config, "openmp_backend") and "intel" == config.openmp_backend.name:
+        from utils import check_intel_openmp
+        check_intel_openmp()
+
     # Print LD_PRELOAD information to ensure it has been correctly setup by launcher
     for env_var in MANAGED_ENV_VARIABLES:
         LOGGER.info(f"[ENV] {env_var}: {environ.get(env_var)}")
