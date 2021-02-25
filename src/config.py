@@ -56,5 +56,6 @@ class BenchmarkConfig:
     # The length of the sequence (in tokens) given to the model
     sequence_length: int = MISSING
 
-    # Number of // model to allocate
-    num_instances: int = 1
+    # Multi instances settings #
+    # Number of threads per instances
+    num_threads_per_instance: int = -1

@@ -11,7 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from typing import Type
+from typing import Type, List
 
 import hydra
 from hydra.core.config_store import ConfigStore
@@ -41,9 +41,10 @@ def run(config: BenchmarkConfig) -> None:
     from multiprocessing import Pipe
     from multiprocessing.connection import Connection
     from multiprocessing.context import Process
-    from os import environ
+    from os import environ, system, getpid
+
     from hydra.utils import get_class
-    from utils import MANAGED_ENV_VARIABLES
+    from utils import MANAGED_ENV_VARIABLES, get_instances_with_cpu_binding
 
     LOGGER = getLogger("benchmark")
 
@@ -55,7 +56,12 @@ def run(config: BenchmarkConfig) -> None:
     for env_var in MANAGED_ENV_VARIABLES:
         LOGGER.info(f"[ENV] {env_var}: {environ.get(env_var)}")
 
-    def allocate_and_run_model(pipe_out: Connection):
+    def allocate_and_run_model(core_binding: List[int], pipe_out: Connection):
+        # Configure CPU threads affinity for current process
+        system(f"taskset -p -c {','.join(map(str, core_binding))} {getpid()}")
+
+        LOGGER.debug(f"[TASKSET] Set CPU affinity to:  {core_binding} (pid={getpid()})")
+
         backend_factory: Type[Backend] = get_class(config.backend._target_)
         backend = backend_factory.allocate(config)
         benchmark = backend.execute(config)
@@ -64,13 +70,21 @@ def run(config: BenchmarkConfig) -> None:
         # Write out the result to the pipe
         pipe_out.send(benchmark)
 
+    # Get the set of threads affinity for this specific process
+    cpu_bindings = get_instances_with_cpu_binding(config.num_threads_per_instance)
+
     # Allocate all the model instances
     reader, writer = Pipe(False)
     benchmarks, workers = [], []
-    for instance in range(config.num_instances):
-        process = Process(target=allocate_and_run_model, kwargs={"pipe_out": writer})
+    for instance_core_binding in cpu_bindings:
+        process = Process(
+            target=allocate_and_run_model,
+            kwargs={
+                "core_binding": instance_core_binding,
+                "pipe_out": writer
+            }
+        )
         process.start()
-
         workers.append(process)
 
     # Wait for all workers
