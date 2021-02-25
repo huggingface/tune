@@ -60,7 +60,7 @@ def run(config: BenchmarkConfig) -> None:
         # Configure CPU threads affinity for current process
         system(f"taskset -p -c {','.join(map(str, core_binding))} {getpid()}")
 
-        LOGGER.debug(f"[TASKSET] Set CPU affinity to:  {core_binding} (pid={getpid()})")
+        LOGGER.info(f"[TASKSET] Set CPU affinity to:  {core_binding} (pid={getpid()})")
 
         backend_factory: Type[Backend] = get_class(config.backend._target_)
         backend = backend_factory.allocate(config)
