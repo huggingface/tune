@@ -17,6 +17,11 @@ The repository is divided into 2 principal sections:
 - `config/` stores all the configuration files for the supported backends.
 - `backends/` stores the actual logic to generate textual inputs and execute a forward pass for the targeted backend.
 
+## Requirements
+
+This benchmark has been developed and tested on Ubuntu 20.04 with the following dependencies:
+`apt install python3 python3-dev python3-pip`
+
 
 ## How to use this repository to benchmark with a specific configuration
 
