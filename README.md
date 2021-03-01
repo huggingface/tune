@@ -109,20 +109,38 @@ This value is `False` when using backend `tensorflow` and `True` when using back
 
 ## Ready to use CLI command
 
+### Tuning for multiple backends
+```shell
+--multirun model=bert-base-cased batch_size=1 backend=pytorch,torchscript,tensorflow,xla,ort
+```
+
 ### Tuning the number of intra/inter ops for parallel sections (OMP_NUM_THREADS, MKL_NUM_THREADS, etc.)
 
+```shell
+--multirun model=bert-base-cased batch_size=1 sequence_length=32 backend.num_threads=2,4,8 backend.num_interops_threads=2,4,8
+```
 
 ### Tuning OpenMP thread affinity
-
+```shell
+--multirun model=bert-base-cased batch_size=1 sequence_length=32 ... openmp=core,fine,thread,tile,none
+```
 
 ### Tuning number of model instances (multi-instance setup) along with intra/inter ops for parallel sections
-
+```shell
+--multirun model=bert-base-cased batch_size=1 sequence_length=32 ... num_instances=1,2,4
+```
 
 ### Tuning allocation library 
-
+```shell
+export TCMALLOC_LIBRARY_PATH=</path/to/tcmalloc/libtcmalloc.so>
+--multirun model=bert-base-cased batch_size=1 sequence_length=32 ... malloc=std,tcmalloc
+```
 
 ### Tuning OpenMP implementation
-
+```shell
+export INTEL_OPENMP_LIBRARY_PATH=</path/to/intel/openmp/libomp.so>
+--multirun model=bert-base-cased batch_size=1 sequence_length=32 ... openmp_backend=gnu,intel
+```
 
 ## Hydra FAQ 
 
