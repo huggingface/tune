@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 from dataclasses import dataclass
+from logging import getLogger
 from pathlib import Path
 
 from onnxruntime import InferenceSession, SessionOptions, GraphOptimizationLevel, ExecutionMode
@@ -31,10 +32,19 @@ ALL_GRAPH_OPTIMIZATION_LEVELS = {
     GraphOptimizationLevel.ORT_ENABLE_BASIC,
     GraphOptimizationLevel.ORT_DISABLE_ALL
 }
+ALL_GRAPH_OPTIMIZATION_LEVELS_FROM_STR = {
+    level.name: level
+    for level in ALL_GRAPH_OPTIMIZATION_LEVELS
+}
 
 ALL_EXECUTION_MODE = {
     ExecutionMode.ORT_PARALLEL,
     ExecutionMode.ORT_SEQUENTIAL
+}
+
+ALL_EXECUTION_MODE_FROM_STR = {
+    level.name: level
+    for level in ALL_EXECUTION_MODE
 }
 
 
@@ -44,6 +54,10 @@ class OnnxRuntimeConfig(BackendConfig):
     execution_mode: str = "ORT_PARALLEL"
     name: str = "onnxruntime"
     opset: int = 12
+
+
+BACKEND_NAME = "onnxruntime"
+LOGGER = getLogger(BACKEND_NAME)
 
 
 class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
@@ -66,22 +80,31 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
         onnx_model_path = Path(f"onnx_graphs/{config.model}.onnx")
         OnnxRuntimeBackend.convert(config.model, onnx_model_path, config.backend.opset)
 
-        return OnnxRuntimeBackend(config.model, onnx_model_path.absolute().as_posix())
+        backend = OnnxRuntimeBackend(config.model, onnx_model_path.absolute().as_posix())
+        backend.configure(config.backend)
+        return backend
 
     def configure(self, config: OnnxRuntimeConfig):
-        assert config.graph_optimisation_level in ALL_GRAPH_OPTIMIZATION_LEVELS, f"Unknown {config.graph_optimisation_level}"
-        assert config.execution_mode in ALL_EXECUTION_MODE, f"Unknown {config.execution_mode}"
+        assert config.graph_optimisation_level in ALL_GRAPH_OPTIMIZATION_LEVELS_FROM_STR, f"Unknown {config.graph_optimisation_level}"
+        assert config.execution_mode in ALL_EXECUTION_MODE_FROM_STR, f"Unknown {config.execution_mode}"
 
         super().configure(config)
 
-        self.session_opts.execution_mode = config.execution_mode
-        self.session_opts.graph_optimization_level = config.graph_optimisation_level
+        LOGGER.info("Configuring ONNX Runtime Benchmark:")
+
+        self.session_opts.execution_mode = ALL_EXECUTION_MODE_FROM_STR[config.execution_mode]
+        LOGGER.info(f"\t- Setting Execution Mode: {self.session_opts.execution_mode}")
+
+        self.session_opts.graph_optimization_level = ALL_GRAPH_OPTIMIZATION_LEVELS_FROM_STR[config.graph_optimisation_level]
+        LOGGER.info(f"\t- Setting Graph Optimization Level: {self.session_opts.graph_optimization_level}")
 
         if config.num_threads is not None:
             self.session_opts.intra_op_num_threads = config.num_threads
+            LOGGER.info(f"\t- Setting intra_op_num_threads({self.session_opts.intra_op_num_threads})")
 
         if config.num_interops_threads is not None:
             self.session_opts.inter_op_num_threads = config.num_interops_threads
+            LOGGER.info(f"\t- Setting inter_op_num_threads({self.session_opts.inter_op_num_threads})")
 
     def execute(self, config: 'BenchmarkConfig') -> Benchmark:
         benchmark = Benchmark()

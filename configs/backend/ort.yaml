@@ -3,3 +3,5 @@ name: onnxruntime
 opset: 12
 num_threads: null
 num_interops_threads: null
+graph_optimisation_level: ORT_ENABLE_ALL
+execution_mode: ORT_PARALLEL

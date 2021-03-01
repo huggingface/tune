@@ -60,13 +60,16 @@ class TensorflowBackend(Backend[TensorflowConfig]):
 
     def __init__(self, model: str):
         super().__init__(model)
-        self.model = TFAutoModel.from_pretrained(model)
+        self.model = model
 
         LOGGER.info(f"Allocated TensorFlow Backend for model: {model}")
 
     @classmethod
     def allocate(cls, config: BenchmarkConfig):
-        return TensorflowBackend(config.model)
+        backend = TensorflowBackend(config.model)
+        backend.configure(config.backend)
+
+        return backend
 
     def configure(self, config: BackendConfigT):
         super().configure(config)
@@ -89,6 +92,8 @@ class TensorflowBackend(Backend[TensorflowConfig]):
                 f")"
             )
 
+        # Postponing model allocation to tune intra/inter ops before executing any other TF related code.
+        self.model = TFAutoModel.from_pretrained(self.model)
 
     def execute(self, config: BenchmarkConfig) -> Benchmark:
         if not config.backend.use_xla:
