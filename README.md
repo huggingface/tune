@@ -17,11 +17,15 @@ The repository is divided into 2 principal sections:
 - `config/` stores all the configuration files for the supported backends.
 - `backends/` stores the actual logic to generate textual inputs and execute a forward pass for the targeted backend.
 
-## Requirements
+## Getting Started
 
-This benchmark has been developed and tested on Ubuntu 20.04 with the following dependencies:
-`apt install python3 python3-dev python3-pip`
+**Instructions presented here have been tested on Ubuntu 20.04**
 
+```bash
+apt update && apt -y install python3 python3-pip python3-dev
+cd <repo/path>
+pip install -r requirements.txt
+```
 
 ## How to use this repository to benchmark with a specific configuration
 
@@ -102,6 +106,23 @@ This value is `False` when using backend `tensorflow` and `True` when using back
    - `ORT_SEQUENTIAL` Execute the graph sequentially, without looking for subgraph to execute in parallel.
    - `ORT_PARALLEL` Execute the graph potentially in parallel, looking for non-dependant subgraphs which can be run simultaneously.
   
+
+## Ready to use CLI command
+
+### Tuning the number of intra/inter ops for parallel sections (OMP_NUM_THREADS, MKL_NUM_THREADS, etc.)
+
+
+### Tuning OpenMP thread affinity
+
+
+### Tuning number of model instances (multi-instance setup) along with intra/inter ops for parallel sections
+
+
+### Tuning allocation library 
+
+
+### Tuning OpenMP implementation
+
 
 ## Hydra FAQ 
 
