@@ -9,3 +9,4 @@ pandas
 rich
 transformers
 multiprocess
+numa

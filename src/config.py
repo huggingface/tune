@@ -14,6 +14,7 @@
 
 from dataclasses import dataclass
 from logging import getLogger
+from typing import Dict
 
 from omegaconf import MISSING
 from transformers import __version__ as transformers_version
@@ -59,5 +60,14 @@ class BenchmarkConfig:
     # Multi instances settings #
     num_instances: int = MISSING
 
-    # Number of threads per instances
-    num_threads_per_instance: int = MISSING
+    # Number of core per instances
+    num_core_per_instance: int = MISSING
+
+    # Malloc library
+    malloc: Dict = MISSING
+
+    # OpenMP settings
+    openmp: Dict = MISSING
+
+    # OpenMP backend
+    openmp_backend: Dict = MISSING

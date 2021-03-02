@@ -41,7 +41,7 @@ def run(config: BenchmarkConfig) -> None:
     from multiprocessing import Pipe
     from multiprocessing.connection import Connection
     from multiprocessing.context import Process
-    from os import environ, system, getpid
+    from os import environ, getpid
 
     from hydra.utils import get_class
     from utils import MANAGED_ENV_VARIABLES, get_instances_with_cpu_binding
@@ -60,11 +60,30 @@ def run(config: BenchmarkConfig) -> None:
     for env_var in MANAGED_ENV_VARIABLES:
         LOGGER.info(f"[ENV] {env_var}: {environ.get(env_var)}")
 
-    def allocate_and_run_model(core_binding: List[int], pipe_out: Connection):
-        # Configure CPU threads affinity for current process
-        system(f"taskset -p -c {','.join(map(str, core_binding))} {getpid()}")
+    def configure_numa(socket_binding: List[int], core_binding: List[int]):
+        from numa import available as is_numa_available, set_membind, get_membind, set_affinity, get_affinity
+        if is_numa_available():
+            LOGGER.info("Configuring NUMA:")
 
-        LOGGER.info(f"[TASKSET] Set CPU affinity to: {core_binding} (pid={getpid()})")
+            pid = getpid()
+
+            # Set core binding affinity
+            set_affinity(pid, set(core_binding))
+            LOGGER.info(f"\tScheduler affinity set to: {get_affinity(pid)}")
+
+            # Set memory allocation affinity
+            set_membind(set(socket_binding))
+            LOGGER.info(f"\tBinding memory allocation on {get_membind()}")
+        else:
+            LOGGER.info("NUMA not available on the system, skipping configuration")
+            # Configure taskset
+            # TODO: Check with Sangeeta if this is still needed as we set CPU scheduler affinity above
+            # system(f"taskset -p -c {','.join(map(str, core_binding))} {getpid()}")
+            # LOGGER.info(f"[TASKSET] Set CPU affinity to: {core_binding} (pid={getpid()})")
+
+    def allocate_and_run_model(socket_binding: List[int], core_binding: List[int], pipe_out: Connection):
+        # Configure CPU threads affinity for current process
+        configure_numa(socket_binding, core_binding)
 
         backend_factory: Type[Backend] = get_class(config.backend._target_)
         backend = backend_factory.allocate(config)
@@ -75,19 +94,20 @@ def run(config: BenchmarkConfig) -> None:
         pipe_out.send(benchmark)
 
     # Get the set of threads affinity for this specific process
-    instance_core_bindings = get_instances_with_cpu_binding(config.num_threads_per_instance, config.num_instances)
+    instance_core_bindings = get_instances_with_cpu_binding(config.num_core_per_instance, config.num_instances)
 
-    if len(instance_core_bindings) > 0:
-        LOGGER.info(f"Starting Multi-Instance inference setup: {len(instance_core_bindings)} instances")
+    if config.num_instances > 1:
+        LOGGER.info(f"Starting Multi-Instance inference setup: {config.num_instances} instances")
 
     # Allocate all the model instances
     reader, writer = Pipe(duplex=False)
     benchmarks, workers = [], []
-    for instance_core_binding in instance_core_bindings:
+    for allocated_socket, allocated_socket_cores in instance_core_bindings:
         process = Process(
             target=allocate_and_run_model,
             kwargs={
-                "core_binding": instance_core_binding,
+                "socket_binding": allocated_socket,
+                "core_binding": allocated_socket_cores,
                 "pipe_out": writer
             }
         )

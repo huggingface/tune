@@ -14,7 +14,8 @@
 
 # Copied from FastFormer code: https://github.com/microsoft/fastformers/blob/main/examples/fastformers/run_superglue.py
 import sys
-from typing import List
+from itertools import chain
+from typing import List, Tuple
 
 
 def get_procfs_path():
@@ -39,7 +40,7 @@ def cpu_count_physical():
 
     # Method #2
     physical_logical_mapping = {}
-    mapping = {}
+    cores_per_socket = {}
     current_info = {}
     with open(f'{get_procfs_path()}/cpuinfo', "rb") as f:
         for line in f:
@@ -48,7 +49,7 @@ def cpu_count_physical():
                 # print(current_info)
                 # new section
                 if b'physical id' in current_info and b'cpu cores' in current_info:
-                    mapping[current_info[b'physical id']] = current_info[b'cpu cores']
+                    cores_per_socket[current_info[b'physical id']] = current_info[b'cpu cores']
 
                 if b'physical id' in current_info and b'core id' in current_info and b'processor' in current_info:
                     # print(current_info[b'physical id'] * 1000 + current_info[b'core id'])
@@ -66,28 +67,71 @@ def cpu_count_physical():
                     key, value = line.split(b'\t:', 1)
                     current_info[key.rstrip()] = int(value.rstrip())
 
-    physical_processor_ids = []
-    for key in sorted(physical_logical_mapping.keys()):
-        physical_processor_ids.append(physical_logical_mapping[key])
+    total_num_cores = sum(cores_per_socket.values())
+    core_to_socket_mapping = {}
+    for physical, logical in physical_logical_mapping.items():
+        physical_id = physical // 1000
 
-    result = sum(mapping.values())
-    # return result or None  # mimic os.cpu_count()
-    return result, physical_processor_ids
+        if physical_id not in core_to_socket_mapping:
+            core_to_socket_mapping[physical_id] = set()
+
+        core_to_socket_mapping[physical_id].add(logical)
+
+    return total_num_cores, cores_per_socket, core_to_socket_mapping
 
 
-def get_instances_with_cpu_binding(num_threads: int = -1, num_instances: int = 1) -> List[List[int]]:
+def get_instances_with_cpu_binding(num_core_per_instance: int = -1, num_instances: int = 1) -> List[Tuple[List[int], List[int]]]:
     """
-    :param num_threads: Number of threads to use per instances, -1 means "use all the CPU cores"
+    :param num_core_per_instance: Number of cores to use per instances, -1 means "use all the CPU cores"
     :param num_instances: Number of model instances to distribute CPU cores for
     :return: List[List[int]] Per instance list of CPU core affinity
     """
-    num_cores, processor_list = cpu_count_physical()
+    total_num_cores, cores_per_socket, core_to_socket_mapping = cpu_count_physical()
+    instance_binding = []
 
-    # Use all the cores
-    if num_threads < 0:
-        num_threads = num_cores
+    # items in a set are unique, if their more than 1 value, then we have different number core per socket.
+    assert len(set(cores_per_socket.values())) == 1, "CPU cores are not equal across sockets"
 
-    return [
-        [(instance * num_threads) + i for i in range(num_threads)]
-        for instance in range(num_instances)
-    ]
+    # No special information given to restrict number of core -> Use all the cores
+    if num_core_per_instance < 0:
+        # We set the number of core per instance to the number of core of one single socket.
+        num_core_per_instance = cores_per_socket[0]
+        need_multiple_socket_per_instance = False
+        need_socket_overcommit = num_instances > 1  # Asking for more than one instance with all the cores
+
+    # Number of core span more than a single socket
+    elif num_core_per_instance > cores_per_socket[0]:
+        num_core_per_instance = max(num_core_per_instance, total_num_cores)
+        need_multiple_socket_per_instance = len(cores_per_socket) > 1  # Ensure we have multiple socket
+        need_socket_overcommit = num_instances > 1
+
+    # Span over only on socket
+    else:
+        need_multiple_socket_per_instance = False
+        need_socket_overcommit = num_core_per_instance * num_instances > cores_per_socket[0]
+
+    for instance in range(num_instances):
+        # On which socket to allocate the instance
+        if need_multiple_socket_per_instance:
+            socket = list(core_to_socket_mapping.keys())
+            cores = {c for s in socket for c in core_to_socket_mapping[s]}
+
+        else:
+            # {socket_id -> [cores]}
+            socket = [instance % len(cores_per_socket.keys())]
+
+            # Get the list of available cores (unallocated) on the target socket
+            cores = core_to_socket_mapping[socket[0]]
+
+        # Pop out allocated core
+        # Overcommiting does pop out cores because it will have overlap between instances
+        # Overcommiting doesnt attempt to do things smart limiting the overhead.
+        if need_socket_overcommit:
+            cores_it = iter(cores)
+            bindings = [next(cores_it) for i in range(num_core_per_instance)]
+        else:
+            bindings = [cores.pop() for _ in range(num_core_per_instance)]
+
+        instance_binding.append((socket, bindings))
+
+    return instance_binding

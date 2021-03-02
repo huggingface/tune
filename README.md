@@ -22,7 +22,7 @@ The repository is divided into 2 principal sections:
 **Instructions presented here have been tested on Ubuntu 20.04**
 
 ```bash
-apt update && apt -y install python3 python3-pip python3-dev
+apt update && apt -y install python3 python3-pip python3-dev libnuma-dev
 cd <repo/path>
 pip install -r requirements.txt
 ```

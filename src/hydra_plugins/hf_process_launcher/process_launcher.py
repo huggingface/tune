@@ -46,13 +46,8 @@ log = logging.getLogger(__name__)
 
 class ProcessLauncher(Launcher):
     def __init__(self, **kwargs: Any) -> None:
-        """Process Launcher
-
-        Launches parallel jobs using Joblib.Parallel. For details, refer to:
-        https://joblib.readthedocs.io/en/latest/generated/joblib.Parallel.html
-
-        This plugin is based on the idea and inital implementation of @emilemathieutmp:
-        https://github.com/facebookresearch/hydra/issues/357
+        """
+        Process Launcher
         """
         self.config: Optional[DictConfig] = None
         self.config_loader: Optional[ConfigLoader] = None
