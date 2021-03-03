@@ -83,11 +83,11 @@ def run(config: BenchmarkConfig) -> None:
 
     def allocate_and_run_model(socket_binding: List[int], core_binding: List[int], pipe_out: Connection):
         # Out of the box setup shouldn't set any NUMA affinity
-        if config.openmp is not None and config.openmp != "none":
+        if config.openmp is not None and config.openmp.name != "none":
             # Configure CPU threads affinity for current process
             configure_numa(socket_binding, core_binding)
         else:
-            LOGGER.debug(f"Skipping configuring NUMA, config.openmp = {config.openmp}")
+            LOGGER.debug(f"Skipping configuring NUMA, config.openmp = {config.openmp.name}")
 
         backend_factory: Type[Backend] = get_class(config.backend._target_)
         backend = backend_factory.allocate(config)

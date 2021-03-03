@@ -1,6 +1,1 @@
-hydra:
-  job:
-    env_set:
-      OMP_MAX_ACTIVE_LEVELS: None
-      KMP_BLOCKTIME: None
-      KMP_AFFINITY: None
+name: none
