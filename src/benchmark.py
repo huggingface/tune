@@ -61,7 +61,7 @@ class Benchmark:
         # Append the time to the buffer
         self.latencies.append(end - start)
 
-        LOGGER.debug(f"Tracked function took: {(end - start)}ns")
+        LOGGER.debug(f"Tracked function took: {(end - start)}ns ({(end - start) / 1e6:.3f}ms)")
 
     def finalize(self, duration_ns: int):
         self.throughput = round((len(self.latencies) / duration_ns) * SEC_TO_NS_SCALE, 2)
