@@ -64,10 +64,10 @@ class Backend(Generic[BackendConfigT], ABC):
         pass
 
     def _get_dummy_token(self) -> str:
-        if self.tokenizer.pad_token is not None:
-            return self.tokenizer.pad_token
+        if self.tokenizer.unk_token is not None:
+            return self.tokenizer.unk_token
         else:
-            return self.tokenizer.convert_tokens_to_string([0])
+            return self.tokenizer.convert_tokens_to_string([1])
 
     def _get_dummy_inputs(self, batch_size: int, seq_len: int) -> List[List[str]]:
         return [[self._get_dummy_token()] * seq_len] * batch_size
