@@ -82,6 +82,18 @@ def get_instances_with_cpu_binding(num_core_per_instance: int = -1, num_instance
     total_num_cores, cores_per_socket, core_to_socket_mapping = cpu_count_physical()
     instance_binding = []
 
+    # Matching ICX
+    total_num_cores = 64
+    cores_per_socket = {0: 32, 1: 32}
+    core_to_socket_mapping = {0: set(range(32)), 1: set(range(32, 64))}
+
+    # 64
+    # {0: 32, 1: 32}
+    # {
+    #   0: {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31},
+    #   1: {32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63}
+    # }
+
     # items in a set are unique, if their more than 1 value, then we have different number core per socket.
     assert len(set(cores_per_socket.values())) == 1, "CPU cores are not equal across sockets"
 
@@ -101,7 +113,7 @@ def get_instances_with_cpu_binding(num_core_per_instance: int = -1, num_instance
     # Span over only on socket
     else:
         need_multiple_socket_per_instance = False
-        need_socket_overcommit = num_core_per_instance * num_instances > cores_per_socket[0]
+        need_socket_overcommit = num_core_per_instance > cores_per_socket[0]
 
     for instance in range(num_instances):
         # On which socket to allocate the instance
