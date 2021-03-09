@@ -67,3 +67,22 @@ def check_intel_openmp() -> Path:
         )
 
     return intel_openmp_path
+
+
+def set_ld_preload_hook(config):
+    ld_preload = []
+    if hasattr(config, "malloc") and "tcmalloc" == config.malloc.name:
+        from utils import check_tcmalloc
+        tcmalloc_path = check_tcmalloc()
+        ld_preload.append(tcmalloc_path.as_posix())
+
+    if hasattr(config, "openmp_backend") and "intel" == config.openmp_backend.name:
+        from utils import check_intel_openmp
+        intel_omp_path = check_intel_openmp()
+        ld_preload.append(intel_omp_path.as_posix())
+
+    ld_preload_str = " ".join(ld_preload)
+    if "LD_PRELOAD" in environ:
+        ld_preload_str += " " + environ.get("LD_PRELOAD", default="")
+
+    environ["LD_PRELOAD"] = ld_preload_str

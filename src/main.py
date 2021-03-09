@@ -90,24 +90,12 @@ def allocate_and_run_model(config: BenchmarkConfig, socket_binding: List[int], c
 def run(config: BenchmarkConfig) -> None:
     # TODO: Check why imports are not persisted when doing swaps
     from multiprocessing import Pipe, Process, set_start_method
-    from os import environ
-    from utils import get_instances_with_cpu_binding
+    from utils import get_instances_with_cpu_binding, set_ld_preload_hook
 
     set_start_method("spawn")
 
     # Configure eventual additional LD_PRELOAD
-    ld_preload = []
-    if hasattr(config, "malloc") and "tcmalloc" == config.malloc.name:
-        from utils import check_tcmalloc
-        tcmalloc_path = check_tcmalloc()
-        ld_preload.append(tcmalloc_path.as_posix())
-
-    if hasattr(config, "openmp_backend") and "intel" == config.openmp_backend.name:
-        from utils import check_intel_openmp
-        intel_omp_path = check_intel_openmp()
-        ld_preload.append(intel_omp_path.as_posix())
-
-    environ["LD_PRELOAD"] = " ".join(ld_preload) + " " + environ.get("LD_PRELOAD", default="")
+    set_ld_preload_hook(config)
 
     # Get the set of threads affinity for this specific process
     instance_core_bindings = get_instances_with_cpu_binding(config.num_core_per_instance, config.num_instances)

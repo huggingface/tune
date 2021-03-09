@@ -12,7 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from .env import MANAGED_ENV_VARIABLES, ENV_VAR_TCMALLOC_LIBRARY_PATH, ENV_VAR_INTEL_OPENMP_LIBRARY_PATH, check_tcmalloc, check_intel_openmp
+from .env import MANAGED_ENV_VARIABLES, ENV_VAR_TCMALLOC_LIBRARY_PATH, ENV_VAR_INTEL_OPENMP_LIBRARY_PATH,\
+    check_tcmalloc, check_intel_openmp, set_ld_preload_hook
 from .cpu import cpu_count_physical, get_procfs_path, get_instances_with_cpu_binding
 
 SEC_TO_NS_SCALE = 1000000000
