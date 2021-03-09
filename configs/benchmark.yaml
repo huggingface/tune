@@ -9,6 +9,9 @@ defaults:
 hydra:
   sweep:
     dir: results/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  job:
+    env_set:
+      TOKENIZERS_PARALLELISM: "false"
 
 
 model: bert-base-cased
