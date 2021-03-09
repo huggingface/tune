@@ -27,18 +27,7 @@ def get_procfs_path():
 def cpu_count_physical():
     """Return the number of physical cores in the system."""
     """Copied from psutil code, and modified to fix an error."""
-    # Method #1 doesn't work for some dual socket topologies.
-    # # Method #1
-    # core_ids = set()
-    # for path in glob.glob(
-    #         "/sys/devices/system/cpu/cpu[0-9]*/topology/core_id"):
-    #     with open_binary(path) as f:
-    #         core_ids.add(int(f.read()))
-    # result = len(core_ids)
-    # if result != 0:
-    #     return result
 
-    # Method #2
     physical_logical_mapping = {}
     cores_per_socket = {}
     current_info = {}
