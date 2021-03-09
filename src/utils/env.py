@@ -29,7 +29,7 @@ MANAGED_ENV_VARIABLES = {
 }
 
 
-def check_tcmalloc():
+def check_tcmalloc() -> Path:
     """
     Ensure tcmalloc library is correctly detected and found
     """
@@ -46,8 +46,10 @@ def check_tcmalloc():
             f"env var {ENV_VAR_TCMALLOC_LIBRARY_PATH} doesn't exist"
         )
 
+    return tcmalloc_path
 
-def check_intel_openmp():
+
+def check_intel_openmp() -> Path:
     """
     Ensure Intel OpenMP library is correctly detected and found
     """
@@ -63,3 +65,5 @@ def check_intel_openmp():
             f"Path {intel_openmp_path.as_posix()} pointed by "
             f"env var {ENV_VAR_INTEL_OPENMP_LIBRARY_PATH} doesn't exist"
         )
+
+    return intel_openmp_path

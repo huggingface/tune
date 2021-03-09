@@ -1,4 +1,5 @@
-defaults:
-  - ld_preload/tcmalloc
+#defaults:
+#  - ld_preload/tcmalloc
 
 name: tcmalloc
+path: ${env:TCMALLOC_LIBRARY_PATH}

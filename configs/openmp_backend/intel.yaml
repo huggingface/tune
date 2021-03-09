@@ -1,4 +1,5 @@
-defaults:
-  - ld_preload/intel
+#defaults:
+#  - ld_preload/intel
 
 name: intel
+path: ${env:INTEL_OPENMP_LIBRARY_PATH}

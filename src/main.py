@@ -11,6 +11,8 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+from logging import getLogger
+from multiprocessing.connection import Connection
 from typing import Type, List
 
 import hydra
@@ -34,31 +36,13 @@ cs.store(group="backend", name="xla_backend", node=TensorflowConfig)
 cs.store(group="backend", name="ort_backend", node=OnnxRuntimeConfig)
 
 
-@hydra.main(config_path="../configs", config_name="benchmark")
-def run(config: BenchmarkConfig) -> None:
-    # TODO: Check why imports are not persisted when doing swaps
-    from logging import getLogger
-    from multiprocessing import Pipe
-    from multiprocessing.connection import Connection
-    from multiprocessing.context import Process
+LOGGER = getLogger("benchmark")
+
+
+def allocate_and_run_model(config: BenchmarkConfig, socket_binding: List[int], core_binding: List[int], pipe_out: Connection):
     from os import environ, getpid
-
     from hydra.utils import get_class
-    from utils import MANAGED_ENV_VARIABLES, get_instances_with_cpu_binding
-
-    LOGGER = getLogger("benchmark")
-
-    if hasattr(config, "malloc") and "tcmalloc" == config.malloc.name:
-        from utils import check_tcmalloc
-        check_tcmalloc()
-
-    if hasattr(config, "openmp_backend") and "intel" == config.openmp_backend.name:
-        from utils import check_intel_openmp
-        check_intel_openmp()
-
-    # Print LD_PRELOAD information to ensure it has been correctly setup by launcher
-    for env_var in MANAGED_ENV_VARIABLES:
-        LOGGER.info(f"[ENV] {env_var}: {environ.get(env_var)}")
+    from utils import MANAGED_ENV_VARIABLES
 
     def configure_numa(socket_binding: List[int], core_binding: List[int]):
         from numa import available as is_numa_available, set_membind, get_membind, set_affinity, get_affinity
@@ -81,21 +65,49 @@ def run(config: BenchmarkConfig) -> None:
             # system(f"taskset -p -c {','.join(map(str, core_binding))} {getpid()}")
             # LOGGER.info(f"[TASKSET] Set CPU affinity to: {core_binding} (pid={getpid()})")
 
-    def allocate_and_run_model(socket_binding: List[int], core_binding: List[int], pipe_out: Connection):
-        # Out of the box setup shouldn't set any NUMA affinity
-        if config.openmp is not None and config.openmp.name != "none":
-            # Configure CPU threads affinity for current process
-            configure_numa(socket_binding, core_binding)
-        else:
-            LOGGER.debug(f"Skipping configuring NUMA, config.openmp = {config.openmp.name}")
+    # Out of the box setup shouldn't set any NUMA affinity
+    if config.openmp is not None and config.openmp.name != "none":
+        # Configure CPU threads affinity for current process
+        configure_numa(socket_binding, core_binding)
+    else:
+        LOGGER.debug(f"Skipping configuring NUMA, config.openmp = {config.openmp.name}")
 
-        backend_factory: Type[Backend] = get_class(config.backend._target_)
-        backend = backend_factory.allocate(config)
-        benchmark = backend.execute(config)
-        backend.clean(config)
+    # Print LD_PRELOAD information to ensure it has been correctly setup by launcher
+    for env_var in MANAGED_ENV_VARIABLES:
+        LOGGER.info(f"[ENV] {env_var}: {environ.get(env_var)}")
 
-        # Write out the result to the pipe
-        pipe_out.send(benchmark)
+    backend_factory: Type[Backend] = get_class(config.backend._target_)
+    backend = backend_factory.allocate(config)
+    benchmark = backend.execute(config)
+    backend.clean(config)
+
+    # Write out the result to the pipe
+    pipe_out.send(benchmark)
+
+
+
+@hydra.main(config_path="../configs", config_name="benchmark")
+def run(config: BenchmarkConfig) -> None:
+    # TODO: Check why imports are not persisted when doing swaps
+    from multiprocessing import Pipe, Process, set_start_method
+    from os import environ
+    from utils import get_instances_with_cpu_binding
+
+    set_start_method("spawn")
+
+    # Configure eventual additional LD_PRELOAD
+    ld_preload = []
+    if hasattr(config, "malloc") and "tcmalloc" == config.malloc.name:
+        from utils import check_tcmalloc
+        tcmalloc_path = check_tcmalloc()
+        ld_preload.append(tcmalloc_path.as_posix())
+
+    if hasattr(config, "openmp_backend") and "intel" == config.openmp_backend.name:
+        from utils import check_intel_openmp
+        intel_omp_path = check_intel_openmp()
+        ld_preload.append(intel_omp_path.as_posix())
+
+    environ["LD_PRELOAD"] = " ".join(ld_preload) + " " + environ.get("LD_PRELOAD", default="")
 
     # Get the set of threads affinity for this specific process
     instance_core_bindings = get_instances_with_cpu_binding(config.num_core_per_instance, config.num_instances)
@@ -110,12 +122,14 @@ def run(config: BenchmarkConfig) -> None:
         process = Process(
             target=allocate_and_run_model,
             kwargs={
+                "config": config,
                 "socket_binding": allocated_socket,
                 "core_binding": allocated_socket_cores,
-                "pipe_out": writer
+                "pipe_out": writer,
             }
         )
         process.start()
+        LOGGER.debug(f"Started process with pid {process.pid}")
         workers.append(process)
 
     # Wait for all workers
