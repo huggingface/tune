@@ -68,7 +68,8 @@ def allocate_and_run_model(config: BenchmarkConfig, socket_binding: List[int], c
         LOGGER.debug(f"Skipping configuring NUMA, config.openmp = {config.openmp.name}")
 
     # Print LD_PRELOAD information to ensure it has been correctly setup by launcher
-    for env_var in MANAGED_ENV_VARIABLES:
+    env_to_print = environ.keys() if hasattr(config, "debug") and config.debug else MANAGED_ENV_VARIABLES
+    for env_var in env_to_print:
         LOGGER.info(f"[ENV] {env_var}: {environ.get(env_var)}")
 
     backend_factory: Type[Backend] = get_class(config.backend._target_)
