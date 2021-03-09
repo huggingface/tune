@@ -97,6 +97,10 @@ def run(config: BenchmarkConfig) -> None:
     # Get the set of threads affinity for this specific process
     instance_core_bindings = get_instances_with_cpu_binding(config.num_core_per_instance, config.num_instances)
 
+    if hasattr(config, "debug") and config.debug:
+        environ["OMP_DISPLAY_ENV"] = "VERBOSE"
+        environ["KMP_SETTINGS"] = "1"
+
     if config.num_instances > 1:
         LOGGER.info(f"Starting Multi-Instance inference setup: {config.num_instances} instances")
 
