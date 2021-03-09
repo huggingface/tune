@@ -11,7 +11,7 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from logging import getLogger, DEBUG
+from logging import getLogger, DEBUG, INFO
 from logging.handlers import QueueHandler
 from multiprocessing.connection import Connection
 from multiprocessing import Queue
@@ -59,7 +59,7 @@ def allocate_and_run_model(config: BenchmarkConfig, socket_binding: List[int], c
     # Setup logging to log records in the same file descriptor than main process
     qh = QueueHandler(log_queue)
     root = getLogger()
-    root.setLevel(DEBUG)
+    root.setLevel(DEBUG if hasattr(config, "debug") and config.debug else INFO)
     root.addHandler(qh)
 
     # Out of the box setup shouldn't set any NUMA affinity
@@ -132,7 +132,6 @@ def run(config: BenchmarkConfig) -> None:
     for worker in workers:
         worker.join()
         benchmark = reader.recv()
-
         benchmarks.append(benchmark)
 
     # Stop logger thread
