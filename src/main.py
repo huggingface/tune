@@ -42,12 +42,7 @@ LOGGER = getLogger("benchmark")
 def allocate_and_run_model(config: BenchmarkConfig, socket_binding: List[int], core_binding: List[int], pipe_out: Connection):
     from os import environ, getpid
     from hydra.utils import get_class
-    from utils import MANAGED_ENV_VARIABLES
-
-    def configure_numa(socket_binding: List[int], core_binding: List[int]):
-        from numa import available as is_numa_available, set_membind, get_membind, set_affinity, get_affinity
-        if is_numa_available():
-            LOGGER.info("Configuring NUMA:")
+    from utils import MANAGED_ENV_VARIABLES, configure_numa
 
             pid = getpid()
 
@@ -83,7 +78,6 @@ def allocate_and_run_model(config: BenchmarkConfig, socket_binding: List[int], c
 
     # Write out the result to the pipe
     pipe_out.send(benchmark)
-
 
 
 @hydra.main(config_path="../configs", config_name="benchmark")

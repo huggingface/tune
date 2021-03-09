@@ -15,7 +15,11 @@
 # Copied from FastFormer code: https://github.com/microsoft/fastformers/blob/main/examples/fastformers/run_superglue.py
 import sys
 from itertools import chain
+from logging import getLogger
+from os import getpid
 from typing import List, Tuple
+
+LOGGER = getLogger("cpu")
 
 
 def get_procfs_path():
@@ -124,3 +128,26 @@ def get_instances_with_cpu_binding(num_core_per_instance: int = -1, num_instance
         instance_binding.append((socket, bindings))
 
     return instance_binding
+
+
+def configure_numa(socket_binding: List[int], core_binding: List[int]):
+    from numa import available as is_numa_available, set_membind, get_membind, set_affinity, get_affinity
+    if is_numa_available():
+        LOGGER.info("Configuring NUMA:")
+
+        pid = getpid()
+
+        # Set core binding affinity
+        set_affinity(pid, set(core_binding))
+        LOGGER.info(f"\tScheduler affinity set to: {get_affinity(pid)}")
+
+        # Set memory allocation affinity
+        set_membind(set(socket_binding))
+        LOGGER.info(f"\tBinding memory allocation on {get_membind()}")
+    else:
+        LOGGER.info("NUMA not available on the system, skipping configuration")
+
+    # Configure taskset
+    # TODO: Check with @Sangeeta if this is still needed as we set CPU scheduler affinity above
+    # system(f"taskset -p -c {','.join(map(str, core_binding))} {getpid()}")
+    # LOGGER.info(f"[TASKSET] Set CPU affinity to: {core_binding} (pid={getpid()})")
