@@ -11,8 +11,12 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from logging import getLogger
+from logging import getLogger, DEBUG
+from logging.handlers import QueueHandler
 from multiprocessing.connection import Connection
+from multiprocessing import Queue
+from os import environ
+from threading import Thread
 from typing import Type, List
 
 import hydra
@@ -39,26 +43,24 @@ cs.store(group="backend", name="ort_backend", node=OnnxRuntimeConfig)
 LOGGER = getLogger("benchmark")
 
 
-def allocate_and_run_model(config: BenchmarkConfig, socket_binding: List[int], core_binding: List[int], pipe_out: Connection):
-    from os import environ, getpid
+def logging_thread(log_queue: Queue):
+    while True:
+        record = log_queue.get()
+        if record is None:
+            break
+
+        getLogger(record.name).handle(record)
+
+
+def allocate_and_run_model(config: BenchmarkConfig, socket_binding: List[int], core_binding: List[int], pipe_out: Connection, log_queue: Queue):
     from hydra.utils import get_class
     from utils import MANAGED_ENV_VARIABLES, configure_numa
 
-            pid = getpid()
-
-            # Set core binding affinity
-            set_affinity(pid, set(core_binding))
-            LOGGER.info(f"\tScheduler affinity set to: {get_affinity(pid)}")
-
-            # Set memory allocation affinity
-            set_membind(set(socket_binding))
-            LOGGER.info(f"\tBinding memory allocation on {get_membind()}")
-        else:
-            LOGGER.info("NUMA not available on the system, skipping configuration")
-            # Configure taskset
-            # TODO: Check with Sangeeta if this is still needed as we set CPU scheduler affinity above
-            # system(f"taskset -p -c {','.join(map(str, core_binding))} {getpid()}")
-            # LOGGER.info(f"[TASKSET] Set CPU affinity to: {core_binding} (pid={getpid()})")
+    # Setup logging to log records in the same file descriptor than main process
+    qh = QueueHandler(log_queue)
+    root = getLogger()
+    root.setLevel(DEBUG)
+    root.addHandler(qh)
 
     # Out of the box setup shouldn't set any NUMA affinity
     if config.openmp is not None and config.openmp.name != "none":
@@ -98,8 +100,14 @@ def run(config: BenchmarkConfig) -> None:
     if config.num_instances > 1:
         LOGGER.info(f"Starting Multi-Instance inference setup: {config.num_instances} instances")
 
-    # Allocate all the model instances
-    reader, writer = Pipe(duplex=False)
+    # Allocate all the IPC tools
+    (reader, writer), log_queue = Pipe(duplex=False), Queue()
+
+    # Allocate log record listener thread
+    log_thread = Thread(target=logging_thread, args=(log_queue, ))
+    log_thread.start()
+
+    # Allocate model and run benchmark
     benchmarks, workers = [], []
     for allocated_socket, allocated_socket_cores in instance_core_bindings:
         process = Process(
@@ -109,6 +117,7 @@ def run(config: BenchmarkConfig) -> None:
                 "socket_binding": allocated_socket,
                 "core_binding": allocated_socket_cores,
                 "pipe_out": writer,
+                "log_queue": log_queue
             }
         )
         process.start()
@@ -121,6 +130,10 @@ def run(config: BenchmarkConfig) -> None:
         benchmark = reader.recv()
 
         benchmarks.append(benchmark)
+
+    # Stop logger thread
+    log_queue.put_nowait(None)
+    log_thread.join()
 
     # Export the result
     if len(benchmarks) > 1:
