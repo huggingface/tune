@@ -1,4 +1,4 @@
-## Transformers benchmarks in collaboration with Intel Corp.
+## Transformers benchmark in collaboration with Intel Corporation.
 
 The benchmarking repository provides an easy and flexible testbed to generate, run and save multiple configurations 
 in order to compare Transformers based Neural Network models.
@@ -27,7 +27,9 @@ cd <repo/path>
 pip install -r requirements.txt
 ```
 
-## How to use this repository to benchmark with a specific configuration
+
+## Benchmarking framework
+### How to use this repository to benchmark with a specific configuration
 
 Hydra, the configuration framework used in this project, provides a simple command-line interface to specify and
 override the configuration to be run.
@@ -43,36 +45,30 @@ For instance, in order to run a benchmark for ONNX Runtime on CPU with:
 python3 src/main.py model=bert-base-cased sequence_length=32 backend=ort device=cpu
 ```
 
-## Automatically let Hydra generate all the permutation to cover multiple configurations
+### Automatically let Hydra generate all the permutation to cover multiple configurations
 
 Hydra integrates a very powerfull sweep generation utility which is exposed through the `--multirun` command-line flag
 when invoking the benchmark script.
 
-For instance, in order to run multiple benchmarks for PyTorch/TensorFlow/ONNX Runtime on CPU with:
+For instance, in order to run a benchmark for PyTorch on CPU with the following specs:
 - **Model = bert-base-cased**
 - **Device = CPU**
-- **Batch Size = 1,4,8**
-- **Sequence Length = 8,16,32,64,128,256,512**
+- **Batch Size = 1**
+- **Sequence Length = 128**
 
 ```bash
-python3 src/main.py --multirun model=bert-base-cased batch_size=1,4,8 sequence_length=8,16,32,64,128,256,512 backend=pytorch,tensorflow,ort device=cpu
+python3 src/main.py model=bert-base-cased batch_size=1 sequence_length=128 backend=pytorch device=cpu
 ```
 
-## Overridable configuration properties
+### Overridable configuration properties
 
 - `backend`: Indicate the backend(s) to use to run the benchmark `{"pytorch", "torchscript", "tensorflow", "xla", "ort"}`
 - `device`: Indicate on which device to run the benchmark `{"cpu", "gpu"}`
-- `precision`:
-- `num_threads`: Number of threads to use for intra-operation within OpenMP parallel section (`-1` Detect the number of CPU cores and use this value)
-- `num_interops_threads`: Number of threads to use for inter-operation within OpenMP parallel section (`-1` Detect the number of CPU cores and use this value)
+- `precision`: Indicate the model's parameters data format. For now only support `float32` (_i.e. full precision_)
+- `num_threads`: Number of threads to use for intra-operation (`-1` Detect the number of CPU cores and use this value)
+- `num_interops_threads`: Number of threads to use for inter-operation (`-1` Detect the number of CPU cores and use this value)
 - `warmup_runs`: Number of warmup forward to execute before recording any benchmarking results. (Especially useful to preallocate memory buffers).
-- `num_runs`: Number of forward call to execute to collect benchmarking results. These runs are executed after `warmup_runs`.
-- `num_instances`: Number of independent models to allocate (default: 1)
-- `num_threads_per_instance`: Number of threads to attach to each model instance
-- `openmp`: Tune openmp environment variables (KMP_AFFINITY, KMP_BLOCKTIME, OMP_MAX_ACTIVE_LEVELS)
-- `openmp_backend`: Which OpenMP library implementation to use (GNU or Intel through INTEL_OPENMP_LIBRARY_PATH env var) 
-- `malloc`: Which memory allocation library implementation to use (std or tcmalloc through TCMALLOC_LIBRARY_PATH env var) 
-
+- `benchmark_duration`: Duration (in seconds) of the benchmark in an attempt to do as many forward calls as possible within the specified duration. These runs are executed after `warmup_runs`.
 
 ## Backend specific configuration properties
 
@@ -105,13 +101,30 @@ This value is `False` when using backend `tensorflow` and `True` when using back
 - `execution_mode` Mode to execute the ONNX Graph. Can be either:
    - `ORT_SEQUENTIAL` Execute the graph sequentially, without looking for subgraph to execute in parallel.
    - `ORT_PARALLEL` Execute the graph potentially in parallel, looking for non-dependant subgraphs which can be run simultaneously.
-  
+
+
+## Launch utility tool
+The benchmarking comes with a launcher tool highly inspired by [the one made available by Intel](https://github.com/intel/intel-extension-for-pytorch/blob/master/intel_pytorch_extension_py/launch.py).
+The launcher tool helps you handle all the lower bits for configuring experiment to get the best out of the platform you have.
+
+More precisely, it will be able to configure the following elements:
+
+- Linux transparent huge pages mechanism
+- CPU cores affinity for OpenMP threads on NUMA platforms
+- Memory affinity for OpenMP threads on NUMA platforms
+- OpenMP configurations (KMP_AFFINITY, KMP_BLOCKTIME, OMP_NUM_THREADS, OMP_MAX_ACTIVE_LEVELS, etc.)
+- Change at runtime the OpenMP library to be used (GNU / Intel)
+- Change the memory allocation library to be used (std, tcmalloc, jemalloc)
+- Setup multi-instances inference (multi independent models executing in parallel) with per-instance CPU core/memory affinity
+
+The launcher script `launcher.py` is located at the root of transformers-benchmarks folder. 
+You can run `python launcher.py --help` to get all the tuning options available.  
 
 ## Ready to use CLI command
 
-### Tuning for multiple backends
+### Benchmarking out of the box configuration for multiple backends
 ```shell
---multirun model=bert-base-cased batch_size=1 backend=pytorch,torchscript,tensorflow,xla,ort
+--multirun model=bert-base-cased backend=pytorch,torchscript,tensorflow,xla,ort
 ```
 
 ### Tuning the number of intra/inter ops for parallel sections (OMP_NUM_THREADS, MKL_NUM_THREADS, etc.)
@@ -122,31 +135,37 @@ This value is `False` when using backend `tensorflow` and `True` when using back
 
 ### Tuning OpenMP thread affinity
 ```shell
---multirun model=bert-base-cased batch_size=1 sequence_length=32 ... openmp=core,fine,thread,tile,none
+python launcher.py --kmp_affinity=<value_here> -- src/main.py model=bert-base-cased batch_size=1 sequence_length=32 ... 
 ```
 
 ### Tuning number of model instances (multi-instance setup) along with intra/inter ops for parallel sections
 ```shell
---multirun model=bert-base-cased batch_size=1 sequence_length=32 ... num_instances=1,2,4
+python launcher.py --ninstances=4 -- src/main.py model=bert-base-cased batch_size=1 sequence_length=32 ...
 ```
 
 ### Tuning allocation library 
 ```shell
 export TCMALLOC_LIBRARY_PATH=</path/to/tcmalloc/libtcmalloc.so>
---multirun model=bert-base-cased batch_size=1 sequence_length=32 ... malloc=std,tcmalloc
+python launcher.py --enable_tcmalloc -- src/main.py model=bert-base-cased batch_size=1 sequence_length=32 ...
 ```
-
+ 
 ### Tuning OpenMP implementation
 ```shell
 export INTEL_OPENMP_LIBRARY_PATH=</path/to/intel/openmp/libomp.so>
---multirun model=bert-base-cased batch_size=1 sequence_length=32 ... openmp_backend=gnu,intel
+python launcher.py --enable_iomp -- src/main.py model=bert-base-cased batch_size=1 sequence_length=32 ...
 ```
 
-## Hydra FAQ 
+### Enabling Transparent Huge Page
+```shell
+python launcher.py --enable_thp -- src/main.py model=bert-base-cased batch_size=1 sequence_length=32 ...
+```
 
-### Overriding specific environment variables through Hydra's CLI
+## Hydra FAQ
 
-$ python my_app.py '+hydra.job.env_set={KMP_AFFINITY:granularity\=fine}' --cfg hydra -p hydra.job.env_set
+## Executing dry-run to highlight configuration
+```shell
+python launcher.py --enable_tcmalloc --enable_iomp --ninstances=2 -- src/main.py --info config model=bert-base-cased batch_size=16 sequence_length=512
+```
 
 ## Results 
 

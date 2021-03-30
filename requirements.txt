@@ -2,11 +2,11 @@ omegaconf==2.1.0dev19
 hydra-core==1.1.0.dev3
 hydra-joblib-launcher
 torch
-tensorflow
+intel-tensorflow
 onnxruntime
+onnxruntime_tools
 psutil
 pandas
 rich
 transformers
 multiprocess
-numa

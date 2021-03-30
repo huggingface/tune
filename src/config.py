@@ -11,9 +11,11 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-
+from binascii import hexlify
 from dataclasses import dataclass
 from logging import getLogger
+from random import getrandbits
+
 from typing import Dict
 
 from omegaconf import MISSING
@@ -49,7 +51,7 @@ class BenchmarkConfig:
     precision: str = MISSING
 
     # Use Transparent Huge Page mechanis to increase CPU cache hit probability
-    use_huge_page: bool = MISSING
+    use_huge_page: str = MISSING
 
     # Number of sample given to the model at each forward
     batch_size: int = MISSING
@@ -63,11 +65,8 @@ class BenchmarkConfig:
     # Number of core per instances
     num_core_per_instance: int = MISSING
 
-    # Malloc library
-    malloc: Dict = MISSING
+    # Experiment identifier
+    experiment_id: str = hexlify(getrandbits(32).to_bytes(4, 'big')).decode('ascii')
 
-    # OpenMP settings
-    openmp: Dict = MISSING
-
-    # OpenMP backend
-    openmp_backend: Dict = MISSING
+    # Identifier for the current instance. Allow to create specific instance config folder
+    instance_id: int = 0

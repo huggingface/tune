@@ -1,4 +1,0 @@
-# @package hydra.job.env_set
-KMP_AFFINITY: verbose,granularity=thread,compact,1,0
-KMP_BLOCKTIME: "1"
-OMP_MAX_ACTIVE_LEVELS: "1"

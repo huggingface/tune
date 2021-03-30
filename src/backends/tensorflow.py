@@ -15,12 +15,13 @@
 import contextlib
 from dataclasses import dataclass
 from logging import getLogger
+from typing import Optional
 
 import tensorflow as tf
 from tqdm import trange
 from transformers import TFAutoModel, TensorType
 
-from backends import Backend, BackendConfig, BackendConfigT
+from backends import Backend, BackendConfig
 from benchmark import Benchmark
 from config import BenchmarkConfig
 from utils import SEC_TO_NS_SCALE
@@ -53,6 +54,8 @@ def options(options):
 class TensorflowConfig(BackendConfig):
     name: str = "tensorflow"
     use_xla: bool = False
+    eager_mode: bool = False
+    experimental_compiler: Optional[bool] = None
 
 
 class TensorflowBackend(Backend[TensorflowConfig]):
@@ -71,10 +74,16 @@ class TensorflowBackend(Backend[TensorflowConfig]):
 
         return backend
 
-    def configure(self, config: BackendConfigT):
+    def configure(self, config: TensorflowConfig):
         super().configure(config)
 
         LOGGER.info("Configuring TensorFlow Benchmark:")
+
+        if not config.eager_mode:
+            LOGGER.info(
+                "\t+ Disabling eager execution"
+            )
+            tf.compat.v1.disable_eager_execution()
 
         if config.num_threads is not None:
             tf.config.threading.set_intra_op_parallelism_threads(config.num_threads)
@@ -97,11 +106,11 @@ class TensorflowBackend(Backend[TensorflowConfig]):
 
     def execute(self, config: BenchmarkConfig) -> Benchmark:
         if not config.backend.use_xla:
-            return self._run_eager(config)
+            return self._run_tf(config)
         else:
             return self._run_xla(config)
 
-    def _run_eager(self, config: BenchmarkConfig) -> Benchmark:
+    def _run_tf(self, config: BenchmarkConfig) -> Benchmark:
         LOGGER.info("Running TensorFlow Eager benchmark")
         benchmark = Benchmark()
 
@@ -134,7 +143,7 @@ class TensorflowBackend(Backend[TensorflowConfig]):
             return benchmark
 
     def _run_xla(self, config: BenchmarkConfig) -> Benchmark:
-        @tf.function(experimental_compile=True)
+        @tf.function(experimental_compile=config.backend.experimental_compiler)
         def xla_model(inputs):
             return self.model(inputs)
 
@@ -160,7 +169,8 @@ class TensorflowBackend(Backend[TensorflowConfig]):
                     return_tensors=TensorType.TENSORFLOW,
                 )
 
-                # Move tf.constants to GPU ... https://github.com/tensorflow/tensorflow/issues/42242#issuecomment-675590057
+                # Move tf.constants to GPU ...
+                # https://github.com/tensorflow/tensorflow/issues/42242#issuecomment-675590057
                 inputs = {name: tf.identity(t) for name, t in inputs.items()}
 
                 # Warmup

@@ -1,4 +1,0 @@
-defaults:
-  - envset/tile.yaml
-
-name: tile

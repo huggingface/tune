@@ -13,13 +13,92 @@
 #  limitations under the License.
 
 # Copied from FastFormer code: https://github.com/microsoft/fastformers/blob/main/examples/fastformers/run_superglue.py
+import numpy as np
+import platform
+import re
+import subprocess
 import sys
-from itertools import chain
 from logging import getLogger
 from os import getpid
 from typing import List, Tuple
 
 LOGGER = getLogger("cpu")
+
+
+class CPUinfo:
+    def __init__(self):
+        self.cpuinfo = []
+
+        if platform.system() == "Windows":
+            raise RuntimeError("Windows platform is not supported!!!")
+        elif platform.system() == "Linux":
+            args = ["lscpu", "--parse=CPU,Core,Socket,Node"]
+            lscpu_info = subprocess.check_output(args, universal_newlines=True).split("\n")
+
+            # Get information about  cpu, core, socket and node
+            for line in lscpu_info:
+                pattern = r"^([\d]+,[\d]+,[\d]+,[\d]+)"
+                regex_out = re.search(pattern, line)
+                if regex_out:
+                    self.cpuinfo.append(regex_out.group(1).strip().split(","))
+
+            self._get_socket_info()
+
+    def _get_socket_info(self):
+
+        self.socket_physical_cores = []  # socket_id is index
+        self.socket_logical_cores = []   # socket_id is index
+        self.sockets = int(max([line[2] for line in self.cpuinfo])) + 1
+        self.core_to_sockets = {}
+
+        for socket_id in range(self.sockets):
+            cur_socket_physical_core = []
+            cur_socket_logical_core = []
+
+            for line in self.cpuinfo:
+                if socket_id == int(line[2]):
+                    if line[1] not in cur_socket_physical_core:
+                        cur_socket_physical_core.append(line[1])
+
+                    cur_socket_logical_core.append(line[0])
+
+                self.core_to_sockets[line[0]] = line[2]
+
+            self.socket_physical_cores.append(cur_socket_physical_core)
+            self.socket_logical_cores.append(cur_socket_logical_core)
+
+    @property
+    def socket_nums(self):
+        return self.sockets
+
+    @property
+    def physical_core_nums(self):
+        return len(self.socket_physical_cores) * len(self.socket_physical_cores[0])
+
+    @property
+    def logical_core_nums(self):
+        return len(self.socket_logical_cores) * len(self.socket_logical_cores[0])
+
+    @property
+    def get_all_physical_cores(self):
+        return np.array(self.socket_physical_cores).flatten().tolist()
+
+    @property
+    def get_all_logical_cores(self):
+        return np.array(self.socket_logical_cores).flatten().tolist()
+
+    def get_socket_physical_cores(self, socket_id):
+        if socket_id < 0 or socket_id > self.sockets - 1:
+            LOGGER.error(f"Invalid socket id {socket_id}")
+        return self.socket_physical_cores[socket_id]
+
+    def get_socket_logical_cores(self, socket_id):
+        if socket_id < 0 or socket_id > self.sockets - 1:
+            LOGGER.error(f"Invalid socket id {socket_id}")
+        return self.socket_logical_cores[socket_id]
+
+    def get_sockets_for_cores(self, core_ids):
+        return {self.core_to_sockets[core] for core in core_ids}
 
 
 def get_procfs_path():

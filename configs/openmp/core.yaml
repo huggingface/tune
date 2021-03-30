@@ -1,4 +1,0 @@
-defaults:
-  - envset/core.yaml
-
-name: core

@@ -1,4 +1,0 @@
-defaults:
-  - envset/thread.yaml
-
-name: thread

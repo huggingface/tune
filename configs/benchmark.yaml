@@ -1,14 +1,12 @@
 defaults:
-  - malloc: std
-  - openmp: none
-  - openmp_backend: gnu
   - backend: pytorch
-  - override hydra/launcher: process
-
 
 hydra:
+  run:
+    dir:
+      outputs/${experiment_id}/${instance_id}
   sweep:
-    dir: results/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: outputs/${experiment_id}/${instance_id}
   job:
     env_set:
       TOKENIZERS_PARALLELISM: "false"

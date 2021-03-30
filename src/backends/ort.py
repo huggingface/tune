@@ -14,9 +14,11 @@
 
 from dataclasses import dataclass
 from logging import getLogger
+from os import getpid
 from pathlib import Path
 
 from onnxruntime import InferenceSession, SessionOptions, GraphOptimizationLevel, ExecutionMode
+from onnxruntime_tools.transformers.optimizer import optimize_model
 from tqdm import trange
 from transformers import TensorType
 from transformers.convert_graph_to_onnx import convert as onnx_convert
@@ -66,6 +68,7 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
         super().__init__(model)
 
         self.onnx_path = onnx_path
+        self.optimized_onnx_graph = None
         self.session_opts = SessionOptions()
 
     @staticmethod
@@ -77,7 +80,7 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
 
     @classmethod
     def allocate(cls, config: 'BenchmarkConfig'):
-        onnx_model_path = Path(f"onnx_graphs/{config.model}.onnx")
+        onnx_model_path = Path(f"onnx_graphs/{config.model}.onnx.{getpid()}")
         OnnxRuntimeBackend.convert(config.model, onnx_model_path, config.backend.opset)
 
         backend = OnnxRuntimeBackend(config.model, onnx_model_path.absolute().as_posix())
@@ -108,7 +111,22 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
 
     def execute(self, config: 'BenchmarkConfig') -> Benchmark:
         benchmark = Benchmark()
-        session = InferenceSession(self.onnx_path, self.session_opts)
+
+        try:
+            model_opt_path = Path(self.onnx_path)
+            opt_onnx_path = model_opt_path.with_suffix(".opt" + model_opt_path.suffix)
+
+            model_opt = optimize_model(
+                self.onnx_path,
+                model_type="bert",
+                opt_level=int(self.session_opts.graph_optimization_level)
+            )
+            model_opt.save_model_to_file(opt_onnx_path.absolute().as_posix())
+            self.optimized_onnx_graph = opt_onnx_path.absolute().as_posix()
+        except Exception as e:
+            LOGGER.error(f"Unable to optimize ONNX BERT model: {e}")
+
+        session = InferenceSession(self.optimized_onnx_graph or self.onnx_path, self.session_opts)
 
         dummy_inputs = self._get_dummy_inputs(
             batch_size=config.batch_size,
