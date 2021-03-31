@@ -37,7 +37,7 @@ class CPUinfo:
 
             # Get information about  cpu, core, socket and node
             for line in lscpu_info:
-                pattern = r"^([\d]+,[\d]+,[\d]+,[\d]+)"
+                pattern = r"^([\d]+,[\d]+,[\d]+,[\d]?)"
                 regex_out = re.search(pattern, line)
                 if regex_out:
                     self.cpuinfo.append(regex_out.group(1).strip().split(","))
