@@ -1,5 +1,6 @@
 _target_: backends.ort.OnnxRuntimeBackend
 name: onnxruntime
+version: ${ort_version:}
 opset: 12
 num_threads: null
 num_interops_threads: null

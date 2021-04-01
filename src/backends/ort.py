@@ -17,7 +17,7 @@ from logging import getLogger
 from os import getpid
 from pathlib import Path
 
-from onnxruntime import InferenceSession, SessionOptions, GraphOptimizationLevel, ExecutionMode
+from onnxruntime import InferenceSession, SessionOptions, GraphOptimizationLevel, ExecutionMode, __version__ as ort_version
 from onnxruntime_tools.transformers.optimizer import optimize_model
 from tqdm import trange
 from transformers import TensorType
@@ -52,10 +52,14 @@ ALL_EXECUTION_MODE_FROM_STR = {
 
 @dataclass
 class OnnxRuntimeConfig(BackendConfig):
-    graph_optimisation_level: str = "ORT_ENABLE_ALL"
-    execution_mode: str = "ORT_PARALLEL"
     name: str = "onnxruntime"
     opset: int = 12
+    graph_optimisation_level: str = "ORT_ENABLE_ALL"
+    execution_mode: str = "ORT_PARALLEL"
+
+    @staticmethod
+    def version() -> str:
+        return ort_version
 
 
 BACKEND_NAME = "onnxruntime"

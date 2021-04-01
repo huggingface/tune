@@ -35,6 +35,10 @@ class PyTorchConfig(BackendConfig):
     name: str = "pytorch"
     use_torchscript: bool = False
 
+    @staticmethod
+    def version() -> str:
+        return torch.__version__
+
 
 class PyTorchBackend(Backend[PyTorchConfig]):
     NAME = BACKEND_NAME

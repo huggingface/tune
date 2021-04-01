@@ -30,8 +30,14 @@ LOGGER = getLogger("backends")
 @dataclass
 class BackendConfig(TargetConf):
     name: str = MISSING
+    version: str = MISSING
     num_threads: Optional[int] = None
     num_interops_threads: Optional[int] = None
+
+    @staticmethod
+    @abstractmethod
+    def version():
+        raise NotImplementedError()
 
 
 BackendConfigT = TypeVar("BackendConfigT", bound=BackendConfig)

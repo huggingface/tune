@@ -29,6 +29,9 @@ LOGGER = getLogger("benchmark")
 
 @dataclass()
 class BenchmarkConfig:
+    # Python interpreter version
+    python_version: str = MISSING
+
     # Store the transformers version used during the benchmark
     transformers_version: str = transformers_version
 

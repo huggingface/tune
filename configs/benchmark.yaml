@@ -11,7 +11,7 @@ hydra:
     env_set:
       TOKENIZERS_PARALLELISM: "false"
 
-
+python_version: ${python_version:}
 model: bert-base-cased
 batch_size: 1
 sequence_length: 128

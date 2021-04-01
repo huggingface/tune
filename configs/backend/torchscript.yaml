@@ -1,5 +1,6 @@
 _target_: backends.pytorch.PyTorchBackend
 name: torchscript
+version: ${pytorch_version:}
 use_torchscript: true
 num_threads: null
 num_interops_threads: null

@@ -17,12 +17,19 @@ from typing import Type
 import hydra
 from hydra.core.config_store import ConfigStore
 from hydra.utils import get_class
+from omegaconf import OmegaConf
 
 from backends import Backend
 from backends.ort import OnnxRuntimeConfig
 from backends.pytorch import PyTorchConfig
 from backends.tensorflow import TensorflowConfig
 from config import BenchmarkConfig
+
+
+# Register resolvers
+OmegaConf.register_new_resolver("pytorch_version", PyTorchConfig.version)
+OmegaConf.register_new_resolver("tensorflow_version", TensorflowConfig.version)
+OmegaConf.register_new_resolver("ort_version", OnnxRuntimeConfig.version)
 
 # Register configurations
 cs = ConfigStore.instance()
@@ -43,6 +50,9 @@ def run(config: BenchmarkConfig) -> None:
     backend = backend_factory.allocate(config)
     benchmark = backend.execute(config)
     backend.clean(config)
+
+    # Save the resolved config
+    OmegaConf.save(config, ".hydra/config.yaml", resolve=True)
 
     df = benchmark.to_pandas()
     df.to_csv("results.csv", index_label="id")

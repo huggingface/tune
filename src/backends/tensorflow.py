@@ -57,6 +57,10 @@ class TensorflowConfig(BackendConfig):
     eager_mode: bool = False
     experimental_compiler: Optional[bool] = None
 
+    @staticmethod
+    def version() -> str:
+        return tf.__version__
+
 
 class TensorflowBackend(Backend[TensorflowConfig]):
     NAME = BACKEND_NAME
