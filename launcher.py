@@ -311,10 +311,10 @@ def set_multi_thread_and_allocator(args):
 
     if args.enable_thp:
         SUDOER_PASSWORD = getpass("Setting Transparent Huge Page requires elevated privileges.\nPassword:")
-
         set_transparent_huge_pages("always", SUDOER_PASSWORD)
-        os.environ["THP_STATUS"] = get_transparent_huge_pages()
-        args.additional_benchmark_args.append(f"use_huge_page={os.environ['THP_STATUS']}")
+
+    os.environ["THP_STATUS"] = get_transparent_huge_pages()
+    args.additional_benchmark_args.append(f"use_huge_page={os.environ['THP_STATUS']}")
 
     if "OMP_NUM_THREADS" not in os.environ:
         os.environ["OMP_NUM_THREADS"] = str(args.ncore_per_instance)
