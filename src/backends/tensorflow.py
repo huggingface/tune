@@ -18,6 +18,7 @@ from logging import getLogger
 from typing import Optional
 
 import tensorflow as tf
+from tensorflow.python.eager import context as tf_context
 from tqdm import trange
 from transformers import TFAutoModel, TensorType
 
@@ -82,6 +83,10 @@ class TensorflowBackend(Backend[TensorflowConfig]):
         super().configure(config)
 
         LOGGER.info("Configuring TensorFlow Benchmark:")
+
+        # Reset TensorFlow context to allow tuning num_intraops_threads
+        tf_context._context = None
+        tf_context._create_context()
 
         if not config.eager_mode:
             LOGGER.info(
