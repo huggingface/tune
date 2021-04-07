@@ -24,6 +24,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 from datetime import datetime, timezone
+from glob import glob
+from itertools import chain
+from os import path
 from pathlib import Path
 from typing import Type
 
@@ -31,8 +34,23 @@ import pandas as pd
 from argparse import ArgumentParser
 
 import yaml
+from pandas import ExcelWriter
 from rich.console import Console
 from rich.table import Table
+
+# Format name -> extension
+SUPPORTED_EXPORT_FORMAT = {
+    "csv": "csv",
+    "excel": "xlsx"
+}
+
+
+SCALING_CHOICES = {"batch-size-scaling", "core-count-scaling"}
+SCALING_HELP = "Which scaling metodology was used:\n \
+                \t- batch-size-scaling: The total number of cores for the original batch size remains the same - \
+                we use all the cores for the given batch size but break up the problem into smaller problems \
+                with fewer cores for the smaller problem sizes\n" \
+                "\t core-count-scaling: We vary the number of cores for the given batch size"
 
 
 LATENCY_COLUMNS = {
@@ -56,18 +74,18 @@ SUMMARY_SUMMING_COLUMNS = {
     "batch_size",
 }
 
-
+FINAL_COLUMNS_ORDERING = ["backend.name", "batch_size", "sequence_length", "openmp.backend", "malloc", "use_huge_page"]
 RICH_DISPLAYED_COLUMNS = {
-    "backend",
-    "batch_size",
-    "sequence_length",
-    "latency_mean",
-    "latency_std",
-    "latency_90",
-    "latency_99",
-    "latency_999",
-    "throughput",
-    "num_core_per_instance"
+    "backend.name": "Backend",
+    "malloc": "Malloc",
+    "openmp.backend": "OpenMP",
+    "use_huge_page": "Huge Pages",
+    "batch_size": "Batch",
+    "sequence_length": "Sequence",
+    "latency_mean": "Avg. Latency",
+    "latency_std": "Std. Latency",
+    "throughput": "Throughput",
+    "num_core_per_instance": "Cores"
 }
 
 
@@ -87,23 +105,29 @@ def gather_results(folder: Path) -> pd.DataFrame:
         for results, config in results_f
     ], axis="index")
 
-    # Let's use instance id as string
-    results_df["instance_id"] = results_df["instance_id"].astype("str", copy=False)
-
-    # Aggregate results for multi instances
-    if results_df.shape[0] > 1:
-        mean_results = results_df[LATENCY_COLUMNS].aggregate("mean")
-        summed_results = results_df[SUMMARY_SUMMING_COLUMNS].sum()
-        aggr_results = pd.concat((mean_results, summed_results))
-
-        results_df = results_df.append(aggr_results, ignore_index=True)
-        results_df.loc[results_df.shape[0] - 1, "instance_id"] = "\u03A3"
+    results_df = results_df.sort_values(FINAL_COLUMNS_ORDERING)
 
     results_df.fillna("N/A", inplace=True)
     if len(results_df) == 0:
         raise ValueError(f"No results.csv file were found in {folder}")
 
     return results_df
+
+
+def aggregate_multi_instances_results(results_df: pd.DataFrame, mode: str):
+    agg_df = results_df.copy()
+    agg_df = agg_df.groupby(FINAL_COLUMNS_ORDERING)
+
+    transforms = {
+        "latency_mean": ["max"],
+        "throughput": ["sum"],
+    }
+
+    # How to aggregate cores and batch
+    if mode == "batch-size-scaling":
+        transforms["batch_size"] = "sum"
+
+    return agg_df.agg(transforms)
 
 
 def show_results_in_console(df: pd.DataFrame):
@@ -117,16 +141,13 @@ def show_results_in_console(df: pd.DataFrame):
     local_df = df.copy()
     local_df = local_df.assign(**local_df[LATENCY_COLUMNS].apply(lambda x: round((x * 1e-6), 2)))
 
-    # We can remove these columns because their correctly referred to in the "backend.name" column
-    columns = ["instance_id"] + list(filter(lambda name: name in RICH_DISPLAYED_COLUMNS, local_df.columns))
-
-    # Define the columns
-    for column in columns:
-        table.add_column(column.title(), justify="center")
+    for column_name in RICH_DISPLAYED_COLUMNS.values():
+        table.add_column(column_name, justify="center")
+    table.add_column("Instance ID", justify="center")
 
     # Add rows
-    for _, item_columns in local_df.sort_values("instance_id", ascending=False).iterrows():
-        table.add_row(*[str(item_columns[c]) for c in columns])
+    for _, item_columns in local_df.sort_values(FINAL_COLUMNS_ORDERING, ascending=True).iterrows():
+        table.add_row(*[str(item_columns[c]) for c in chain(RICH_DISPLAYED_COLUMNS.keys(), ["instance_id"])])
 
     # Display the table
     console.print(table)
@@ -135,10 +156,21 @@ def show_results_in_console(df: pd.DataFrame):
 if __name__ == '__main__':
     parser = ArgumentParser("Hugging Face Model Benchmark")
     parser.add_argument("--results-folder", type=Path, help="Where the benchmark results have been saved")
+    parser.add_argument("--multi-instances-scaling", choices=SCALING_CHOICES, help=SCALING_HELP)
+    parser.add_argument("--format", choices=SUPPORTED_EXPORT_FORMAT.keys(), default="csv", help="Export file format")
     parser.add_argument("output_folder", type=Path, help="Where the resulting report will be saved")
 
     # Parse command line arguments
     args = parser.parse_args()
+    args.now = datetime.now(timezone.utc).astimezone()
+    args.experiment_id = path.split(args.results_folder)[-1]
+    args.format_ext = SUPPORTED_EXPORT_FORMAT[args.format.lower()]
+
+    for name in {"aggregated", "consolidated"}:
+        value = f"{name}_{args.experiment_id}_" \
+                f"{args.now.date().isoformat()}T{args.now.time().strftime('%H-%M')}" \
+                f".{args.format_ext}"
+        setattr(args, f"{name}_filename", value)
 
     # Ensure everything looks right
     if not args.results_folder.exists():
@@ -146,19 +178,49 @@ if __name__ == '__main__':
         exit(1)
 
     try:
+        # Detect folder run type from folder structure
+        instances_folder = glob(f"{args.results_folder.as_posix()}/*")
+
+        args.is_multi_instances = len(instances_folder) > 1
+        args.instances = {path.split(instance_folder)[-1] for instance_folder in instances_folder}
+        args.is_multirun = {
+            path.split(instance_folder)[-1]: path.exists(path.join(instance_folder, "multirun.yaml"))
+            for instance_folder in instances_folder
+        }
+
+        print(
+            f"Detected following structure:"
+            f"\n\t- Multi Instance: {args.is_multi_instances} ({len(args.instances)} instances)"
+            f"\n\t- Multirun: {args.is_multirun}"
+          )
+
+        # If we detect multi instance and no scaling mode is provided, ask for a value
+        if args.is_multi_instances and args.multi_instances_scaling is None:
+            print(
+                "Warning:\n\tNo mode for handling multi-instances aggregation was provided. "
+                "Only individual runs will be saved.\n"
+                "\tTo include multi-instances aggregation results, "
+                f"please use --multi-instance-scaling={SCALING_CHOICES}\n"
+          )
+
         # Ensure output folder exists
         args.output_folder.mkdir(exist_ok=True, parents=True)
 
         # Gather the results to manipulate
         consolidated_df = gather_results(args.results_folder)
 
-        # Generate reports
-        dt = datetime.now(timezone.utc).astimezone()
-        consolidated_df.to_csv(
-            args.output_folder.joinpath(
-                f"consolidated_{dt.date().isoformat()}T{dt.time().strftime('%H-%M')}.csv"
-            )
-        )
+        if args.is_multi_instances and args.multi_instances_scaling is not None:
+            agg_df = aggregate_multi_instances_results(consolidated_df, args.multi_instances_scaling)
+
+        if args.format == "csv":
+            consolidated_df.to_csv(args.output_folder.joinpath(args.consolidated_filename))
+            if args.is_multi_instances and args.multi_instances_scaling is not None:
+                agg_df.to_csv(args.output_folder.joinpath(args.aggregated_filename))
+        else:
+            with ExcelWriter(args.output_folder.joinpath(args.consolidated_filename)) as excel_writer:
+                consolidated_df.to_excel(excel_writer, sheet_name="individuals")
+                if args.is_multi_instances and args.multi_instances_scaling is not None:
+                    agg_df.to_excel(excel_writer, sheet_name="aggregated_multi_instances")
 
         show_results_in_console(consolidated_df)
     except ValueError as ve:
