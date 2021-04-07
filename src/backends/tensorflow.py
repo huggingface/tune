@@ -98,7 +98,7 @@ class TensorflowBackend(Backend[TensorflowConfig]):
             tf.config.threading.set_intra_op_parallelism_threads(config.num_threads)
             LOGGER.info(
                 f"\t+ Number of intra op threads ("
-                f"tf.config.threading.set_intra_op_parallelism_threads({config.num_threads})"
+                f"tf.config.threading.set_intra_op_parallelism_threads({tf.config.threading.get_intra_op_parallelism_threads()})"
                 f")"
             )
 
@@ -106,7 +106,7 @@ class TensorflowBackend(Backend[TensorflowConfig]):
             tf.config.threading.set_inter_op_parallelism_threads(config.num_interops_threads)
             LOGGER.info(
                 f"\t+ Number of inter op threads ("
-                f"tf.config.threading.set_inter_op_parallelism_threads({config.num_interops_threads})"
+                f"tf.config.threading.set_inter_op_parallelism_threads({tf.config.threading.get_inter_op_parallelism_threads()})"
                 f")"
             )
 
