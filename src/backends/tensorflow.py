@@ -54,7 +54,7 @@ def options(options):
 class TensorflowConfig(BackendConfig):
     name: str = "tensorflow"
     use_xla: bool = False
-    eager_mode: bool = False
+    eager_mode: bool = True
     experimental_compiler: Optional[bool] = None
 
     @staticmethod
