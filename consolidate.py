@@ -28,7 +28,7 @@ from glob import glob
 from itertools import chain
 from os import path
 from pathlib import Path
-from typing import Type
+from typing import Type, List, Tuple
 
 import pandas as pd
 from argparse import ArgumentParser
@@ -96,7 +96,7 @@ def flatten_yaml(path: Path, loader: Type[yaml.Loader] = yaml.SafeLoader) -> pd.
     return pd.json_normalize(content)
 
 
-def gather_results(folder: Path) -> pd.DataFrame:
+def gather_results(folder: Path) -> Tuple[pd.DataFrame, List[str]]:
     # List all csv results
     results_f = [(f, f.parent.joinpath(".hydra/config.yaml")) for f in folder.glob("**/results.csv")]
     results_df = pd.concat([
@@ -105,18 +105,19 @@ def gather_results(folder: Path) -> pd.DataFrame:
         for results, config in results_f
     ], axis="index")
 
-    results_df = results_df.sort_values(FINAL_COLUMNS_ORDERING)
+    existing_columns = list(set(FINAL_COLUMNS_ORDERING).intersection(results_df.columns))
+    results_df = results_df.sort_values(existing_columns)
 
     results_df.fillna("N/A", inplace=True)
     if len(results_df) == 0:
         raise ValueError(f"No results.csv file were found in {folder}")
 
-    return results_df
+    return results_df, existing_columns
 
 
-def aggregate_multi_instances_results(results_df: pd.DataFrame, mode: str):
+def aggregate_multi_instances_results(results_df: pd.DataFrame, sorting_columns: List[str], mode: str):
     agg_df = results_df.copy()
-    agg_df = agg_df.groupby(FINAL_COLUMNS_ORDERING)
+    agg_df = agg_df.groupby(sorting_columns)
 
     transforms = {
         "latency_mean": ["max"],
@@ -130,7 +131,7 @@ def aggregate_multi_instances_results(results_df: pd.DataFrame, mode: str):
     return agg_df.agg(transforms)
 
 
-def show_results_in_console(df: pd.DataFrame):
+def show_results_in_console(df: pd.DataFrame, sorting_columns: List[str]):
     console = Console(width=200)
     table = Table(
         show_header=True, header_style="bold",
@@ -141,13 +142,20 @@ def show_results_in_console(df: pd.DataFrame):
     local_df = df.copy()
     local_df = local_df.assign(**local_df[LATENCY_COLUMNS].apply(lambda x: round((x * 1e-6), 2)))
 
-    for column_name in RICH_DISPLAYED_COLUMNS.values():
+    # Filter out columns
+    displayed_columns = {
+        column_id: column_title
+        for column_id, column_title in RICH_DISPLAYED_COLUMNS.items()
+        if column_id in local_df.columns
+    }
+
+    for column_name in displayed_columns.values():
         table.add_column(column_name, justify="center")
     table.add_column("Instance ID", justify="center")
 
     # Add rows
-    for _, item_columns in local_df.sort_values(FINAL_COLUMNS_ORDERING, ascending=True).iterrows():
-        table.add_row(*[str(item_columns[c]) for c in chain(RICH_DISPLAYED_COLUMNS.keys(), ["instance_id"])])
+    for _, item_columns in local_df.sort_values(sorting_columns, ascending=True).iterrows():
+        table.add_row(*[str(item_columns[c]) for c in chain(displayed_columns.keys(), ["instance_id"])])
 
     # Display the table
     console.print(table)
@@ -207,10 +215,10 @@ if __name__ == '__main__':
         args.output_folder.mkdir(exist_ok=True, parents=True)
 
         # Gather the results to manipulate
-        consolidated_df = gather_results(args.results_folder)
+        consolidated_df, sorting_columns = gather_results(args.results_folder)
 
         if args.is_multi_instances and args.multi_instances_scaling is not None:
-            agg_df = aggregate_multi_instances_results(consolidated_df, args.multi_instances_scaling)
+            agg_df = aggregate_multi_instances_results(consolidated_df, sorting_columns, args.multi_instances_scaling)
 
         if args.format == "csv":
             consolidated_df.to_csv(args.output_folder.joinpath(args.consolidated_filename))
@@ -222,6 +230,6 @@ if __name__ == '__main__':
                 if args.is_multi_instances and args.multi_instances_scaling is not None:
                     agg_df.to_excel(excel_writer, sheet_name="aggregated_multi_instances")
 
-        show_results_in_console(consolidated_df)
+        show_results_in_console(consolidated_df, sorting_columns)
     except ValueError as ve:
         print(ve)
