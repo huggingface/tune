@@ -1,10 +1,10 @@
-## Transformers performances & evaluations framework
+## Transformers performance & evaluation framework
 
 The benchmarking repository provides an easy and flexible testbed to generate, run and save multiple configurations 
 in order to compare Transformers based Neural Network models.
 
-The overall benchmarking project leverage the framework Hydra from Facebook AI & Research which is able to generate
-all the sweeps given through configurations files. Currently, we provide benchmarks for 5 Deep Learning frameworks
+The overall benchmarking project leverages the Hydra framework from Facebook AI & Research which is able to generate
+all the given sweeps through configurations files. Currently, we provide benchmarks for 5 Deep Learning frameworks
 among the most used: 
 
 - PyTorch (Eager mode)
@@ -45,9 +45,9 @@ For instance, in order to run a benchmark for ONNX Runtime on CPU with:
 python3 src/main.py model=bert-base-cased sequence_length=32 backend=ort device=cpu
 ```
 
-### Automatically let Hydra generate all the permutation to cover multiple configurations
+### Automatically let Hydra generate all the permutations to cover multiple configurations
 
-Hydra integrates a very powerfull sweep generation utility which is exposed through the `--multirun` command-line flag
+Hydra integrates a very powerful sweep generation utility which is exposed through the `--multirun` command-line flag
 when invoking the benchmark script.
 
 For instance, in order to run a benchmark for PyTorch on CPU with the following specs:
@@ -62,9 +62,9 @@ python3 src/main.py model=bert-base-cased batch_size=1 sequence_length=128 backe
 
 ### Overridable configuration properties
 
-- `backend`: Indicate the backend(s) to use to run the benchmark `{"pytorch", "torchscript", "tensorflow", "xla", "ort"}`
-- `device`: Indicate on which device to run the benchmark `{"cpu", "gpu"}`
-- `precision`: Indicate the model's parameters data format. For now only support `float32` (_i.e. full precision_)
+- `backend`: Specify the backend(s) to use to run the benchmark `{"pytorch", "torchscript", "tensorflow", "xla", "ort"}`
+- `device`: Specify on which device to run the benchmark `{"cpu", "gpu"}`
+- `precision`: Specify the model's parameters data format. For now, only supports `float32` (_i.e. full precision_)
 - `num_threads`: Number of threads to use for intra-operation (`-1` Detect the number of CPU cores and use this value)
 - `num_interops_threads`: Number of threads to use for inter-operation (`-1` Detect the number of CPU cores and use this value)
 - `warmup_runs`: Number of warmup forward to execute before recording any benchmarking results. (Especially useful to preallocate memory buffers).
@@ -72,8 +72,8 @@ python3 src/main.py model=bert-base-cased batch_size=1 sequence_length=128 backe
 
 ## Backend specific configuration properties
 
-Framework expose different features which can be enabled to tune the execution of the model on the underlying hardware.
-In this repository we expose some of them, essentially the most common one.
+Framework exposes different features which can be enabled to tune the execution of the model on the underlying hardware.
+In this repository we expose some of them, essentially the most common ones.
 
 ### PyTorch
 
@@ -105,7 +105,7 @@ This value is `False` when using backend `tensorflow` and `True` when using back
 
 ## Launch utility tool
 The benchmarking comes with a launcher tool highly inspired by [the one made available by Intel](https://github.com/intel/intel-extension-for-pytorch/blob/master/intel_pytorch_extension_py/launch.py).
-The launcher tool helps you handle all the lower bits for configuring experiment to get the best out of the platform you have.
+The launcher tool helps you handle all the lower bits to configure experiments and get the best out of the platform you have.
 
 More precisely, it will be able to configure the following elements:
 
