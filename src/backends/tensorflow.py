@@ -85,10 +85,11 @@ class TensorflowBackend(Backend[TensorflowConfig]):
         LOGGER.info("Configuring TensorFlow Benchmark:")
 
         # Reset TensorFlow context to allow tuning num_intraops_threads
-        tf_context._context = None
-        tf_context._create_context()
+        # tf_context._context = None
+        # tf_context._create_context()
 
-        if not config.eager_mode:
+        # Eager execution should only be tuned for TensorFlow not for XLA
+        if config.name == "tensorflow" and not config.eager_mode:
             LOGGER.info(
                 "\t+ Disabling eager execution"
             )

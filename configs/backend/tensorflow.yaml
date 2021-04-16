@@ -2,6 +2,6 @@ _target_: backends.tensorflow.TensorflowBackend
 name: tensorflow
 version: ${tensorflow_version:}
 use_xla: false
-eager_mode: false
+eager_mode: true
 num_threads: null
 num_interops_threads: null
