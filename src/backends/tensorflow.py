@@ -96,19 +96,25 @@ class TensorflowBackend(Backend[TensorflowConfig]):
             tf.compat.v1.disable_eager_execution()
 
         if config.num_threads is not None:
-            tf.config.threading.set_intra_op_parallelism_threads(config.num_threads)
+            if tf.config.threading.get_intra_op_parallelism_threads() != config.num_threads:
+                tf.config.threading.set_intra_op_parallelism_threads(config.num_threads)
+
             LOGGER.info(
                 f"\t+ Number of intra op threads ("
-                f"tf.config.threading.set_intra_op_parallelism_threads({tf.config.threading.get_intra_op_parallelism_threads()})"
-                f")"
+                f"tf.config.threading.set_intra_op_parallelism_threads("
+                f"{tf.config.threading.get_intra_op_parallelism_threads()}"
+                f"))"
             )
 
         if config.num_interops_threads is not None:
-            tf.config.threading.set_inter_op_parallelism_threads(config.num_interops_threads)
+            if tf.config.threading.get_inter_op_parallelism_threads() != config.num_interops_threads:
+                tf.config.threading.set_inter_op_parallelism_threads(config.num_interops_threads)
+
             LOGGER.info(
                 f"\t+ Number of inter op threads ("
-                f"tf.config.threading.set_inter_op_parallelism_threads({tf.config.threading.get_inter_op_parallelism_threads()})"
-                f")"
+                f"tf.config.threading.set_inter_op_parallelism_threads("
+                f"{tf.config.threading.get_inter_op_parallelism_threads()}"
+                f"))"
             )
 
         # Postponing model allocation to tune intra/inter ops before executing any other TF related code.

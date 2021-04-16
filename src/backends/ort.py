@@ -106,11 +106,15 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
         LOGGER.info(f"\t- Setting Graph Optimization Level: {self.session_opts.graph_optimization_level}")
 
         if config.num_threads is not None:
-            self.session_opts.intra_op_num_threads = config.num_threads
+            if self.session_opts.intra_op_num_threads != config.num_threads:
+                self.session_opts.intra_op_num_threads = config.num_threads
+
             LOGGER.info(f"\t- Setting intra_op_num_threads({self.session_opts.intra_op_num_threads})")
 
         if config.num_interops_threads is not None:
-            self.session_opts.inter_op_num_threads = config.num_interops_threads
+            if self.session_opts.inter_op_num_threads != config.num_interops_threads:
+                self.session_opts.inter_op_num_threads = config.num_interops_threads
+
             LOGGER.info(f"\t- Setting inter_op_num_threads({self.session_opts.inter_op_num_threads})")
 
     def execute(self, config: 'BenchmarkConfig') -> Benchmark:
