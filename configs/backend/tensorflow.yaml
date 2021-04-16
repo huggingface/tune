@@ -3,5 +3,6 @@ name: tensorflow
 version: ${tensorflow_version:}
 use_xla: false
 eager_mode: true
+experimental_compiler: false
 num_threads: null
 num_interops_threads: null
