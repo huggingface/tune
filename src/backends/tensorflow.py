@@ -15,8 +15,9 @@
 import contextlib
 from dataclasses import dataclass
 from logging import getLogger
-from typing import Optional
+from typing import Optional, Set, Tuple
 
+import numpy as np
 import tensorflow as tf
 from tensorflow.python.eager import context as tf_context
 from tqdm import trange
@@ -61,6 +62,10 @@ class TensorflowConfig(BackendConfig):
     @staticmethod
     def version() -> str:
         return tf.__version__
+
+    @staticmethod
+    def supported_keys() -> Set[str]:
+        return BackendConfig.supported_keys().union({"use_xla", "eager_mode", "experimental_compiler"})
 
 
 class TensorflowBackend(Backend[TensorflowConfig]):
@@ -120,13 +125,13 @@ class TensorflowBackend(Backend[TensorflowConfig]):
         # Postponing model allocation to tune intra/inter ops before executing any other TF related code.
         self.model = TFAutoModel.from_pretrained(self.model)
 
-    def execute(self, config: BenchmarkConfig) -> Benchmark:
+    def execute(self, config: BenchmarkConfig, is_reference: bool = False) -> Tuple[Benchmark, np.ndarray]:
         if not config.backend.use_xla:
-            return self._run_tf(config)
+            return self._run_tf(config, is_reference)
         else:
-            return self._run_xla(config)
+            return self._run_xla(config, is_reference)
 
-    def _run_tf(self, config: BenchmarkConfig) -> Benchmark:
+    def _run_tf(self, config: BenchmarkConfig, is_reference: bool) -> Tuple[Benchmark, np.ndarray]:
         LOGGER.info("Running TensorFlow Eager benchmark")
         benchmark = Benchmark()
 
@@ -146,19 +151,26 @@ class TensorflowBackend(Backend[TensorflowConfig]):
             inputs = {name: tf.identity(t) for name, t in inputs.items()}
 
             # Warmup
+            outputs = []
             for _ in trange(config.warmup_runs, desc="Warming up"):
-                self.model(inputs)
+                output = self.model(inputs)
+                outputs.append(output.last_hidden_state.numpy())
 
-            # Run benchmark
-            benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
-            while sum(benchmark.latencies) < benchmark_duration_ns:
-                with benchmark.track():
-                    self.model(inputs)
+            # Let's not run the benchmark for the reference backend,
+            # as we are more interested in the output tensors.
+            if not is_reference:
 
-            benchmark.finalize(benchmark_duration_ns)
-            return benchmark
+                # Run benchmark
+                benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
+                while sum(benchmark.latencies) < benchmark_duration_ns:
+                    with benchmark.track():
+                        self.model(inputs)
 
-    def _run_xla(self, config: BenchmarkConfig) -> Benchmark:
+                benchmark.finalize(benchmark_duration_ns)
+
+            return benchmark, np.stack(outputs)
+
+    def _run_xla(self, config: BenchmarkConfig, is_reference: bool) -> Tuple[Benchmark, np.ndarray]:
         @tf.function(experimental_compile=config.backend.experimental_compiler)
         def xla_model(inputs):
             return self.model(inputs)
@@ -190,14 +202,20 @@ class TensorflowBackend(Backend[TensorflowConfig]):
                 inputs = {name: tf.identity(t) for name, t in inputs.items()}
 
                 # Warmup
+                outputs = []
                 for _ in trange(config.warmup_runs, desc="Warming up"):
-                    xla_model(inputs)
+                    output = xla_model(inputs)
+                    outputs.append(output.last_hidden_state.numpy())
 
-                # Run benchmark
-                benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
-                while sum(benchmark.latencies) < benchmark_duration_ns:
-                    with benchmark.track():
-                        xla_model(inputs)
+                # Let's not run the benchmark for the reference backend,
+                # as we are more interested in the output tensors.
+                if not is_reference:
 
-                benchmark.finalize(benchmark_duration_ns)
-        return benchmark
+                    # Run benchmark
+                    benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
+                    while sum(benchmark.latencies) < benchmark_duration_ns:
+                        with benchmark.track():
+                            xla_model(inputs)
+
+                    benchmark.finalize(benchmark_duration_ns)
+        return benchmark, np.stack(outputs)

@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from random import getrandbits
 
-from typing import Dict
+from typing import Dict, Optional
 
 from omegaconf import MISSING
 from transformers import __version__ as transformers_version
@@ -73,3 +73,6 @@ class BenchmarkConfig:
 
     # Identifier for the current instance. Allow to create specific instance config folder
     instance_id: int = 0
+
+    # Reference backend implementation that will be used to generate reference (output tensors)
+    reference: Optional[str] = None
