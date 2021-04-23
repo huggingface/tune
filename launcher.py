@@ -343,7 +343,7 @@ def set_multi_thread_and_allocator(args):
 
     omp_backend = "default"
     if args.enable_iomp:
-        find_iomp = add_lib_preload(lib_type="iomp")
+        find_iomp = add_lib_preload(lib_type="iomp5")
         if not find_iomp:
             LOGGER.warning("Unable to find the {} library file lib{}.so in $CONDA_PREFIX/lib or  /.local/lib/"
                            " or /usr/local/lib/ or /usr/local/lib64/ or /usr/lib or /usr/lib64 or "
