@@ -63,7 +63,7 @@ python3 src/main.py model=bert-base-cased batch_size=1 sequence_length=128 backe
 ### Overridable configuration properties
 
 - `backend`: Specify the backend(s) to use to run the benchmark `{"pytorch", "torchscript", "tensorflow", "xla", "ort"}`
-- `device`: Specify on which device to run the benchmark `{"cpu", "gpu"}`
+- `device`: Specify on which device to run the benchmark `{"cpu", "cuda"}`
 - `precision`: Specify the model's parameters data format. For now, only supports `float32` (_i.e. full precision_)
 - `num_threads`: Number of threads to use for intra-operation (`-1` Detect the number of CPU cores and use this value)
 - `num_interops_threads`: Number of threads to use for inter-operation (`-1` Detect the number of CPU cores and use this value)
