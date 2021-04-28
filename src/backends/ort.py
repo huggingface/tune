@@ -64,6 +64,7 @@ class OnnxRuntimeConfig(BackendConfig):
 
 BACKEND_NAME = "onnxruntime"
 LOGGER = getLogger(BACKEND_NAME)
+ONNX_GRAPHS_FOLDER = "onnx_graphs"
 
 
 class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
@@ -84,7 +85,7 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
 
     @classmethod
     def allocate(cls, config: 'BenchmarkConfig'):
-        onnx_model_path = Path(f"onnx_graphs/{config.model}.onnx.{getpid()}")
+        onnx_model_path = Path(f"{ONNX_GRAPHS_FOLDER}/{config.model}.onnx.{getpid()}")
         OnnxRuntimeBackend.convert(config.model, onnx_model_path, config.backend.opset)
 
         backend = OnnxRuntimeBackend(config.model, onnx_model_path.absolute().as_posix())
@@ -162,7 +163,7 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
         return benchmark
 
     def clean(self, config: 'BenchmarkConfig'):
-        onnx_path = Path("onnx_graph")
+        onnx_path = Path(ONNX_GRAPHS_FOLDER)
 
         if onnx_path.exists():
             for file in onnx_path.iterdir():
