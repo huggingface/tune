@@ -164,6 +164,11 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
     def clean(self, config: 'BenchmarkConfig'):
         onnx_path = Path(self.onnx_path)
 
-        if onnx_path.exists():
+        if Path(onnx_path).exists():
             # Care for external data format (multiple file) if exporting bigger model
+            LOGGER.debug(f"Cleaning ONNX model: {self.onnx_path}")
             onnx_path.unlink()
+
+        if self.optimized_onnx_graph is not None and Path(self.optimized_onnx_graph).exists():
+            LOGGER.debug(f"Cleaning optimized ONNX model: {self.optimized_onnx_graph}")
+            Path(self.optimized_onnx_graph).unlink()
