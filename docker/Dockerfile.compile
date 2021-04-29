@@ -1,8 +1,8 @@
 FROM nvidia/cuda:11.2.0-cudnn8-devel-ubuntu20.04 as builder
 
-ARG TRANSFORMERS_VERSION=4.1.1
-ARG PYTORCH_VERSION=1.7.1
-ARG TENSORFLOW_VERSION=2.4.0
+ARG TRANSFORMERS_VERSION=4.5.0
+ARG PYTORCH_VERSION=1.8.1
+ARG TENSORFLOW_VERSION=2.4.1
 ARG MKL_THREADING_LIBRARY=OMP
 ARG CUDA_ARCH_LIST=7.0;7.5;8.0;8.6+PTX
 
@@ -113,19 +113,45 @@ RUN cd /opt/tensorflow && \
 # ONNX Runtime
 RUN git clone https://github.com/microsoft/onnxruntime opt/onnxruntime && \
     cd /opt/onnxruntime && \
-    ./build.sh --config=Release --parallel --cmake_generator=Ninja --enable_pybind --build_wheel --enable_lto --enable_openmp --skip_tests --skip_onnx_tests && \
+    ./build.sh --config=Release --parallel --cmake_generator=Ninja --enable_pybind --build_wheel --enable_lto --use_openmp --skip_tests --skip_onnx_tests && \
     ls /opt/onnxruntime/build/Linux/Release/dist/ | grep -i ".whl" | xargs -I % sh -c 'cp /opt/onnxruntime/build/Linux/Release/dist/% ${FRAMEWORK_BINARIES_FOLDER}/'
 
 FROM nvidia/cuda:11.2.0-cudnn8-runtime-ubuntu20.04
 
+RUN apt update && \
+    apt install -y \
+          python3 \
+          python3-pip \
+          numactl \
+          libtcmalloc-minimal4 \
+          wget
+
+# Install oneAPI repo
+RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
+    apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
+    rm GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
+    echo "deb https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
+
+RUN apt update && apt install -y \
+    intel-oneapi-mkl-devel \
+    intel-oneapi-runtime-openmp && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV LD_LIBRARY_PATH='/usr/local/cuda/compat:/opt/intel/oneapi/tbb/latest/env/lib/intel64/gcc4.8:/opt/intel/oneapi/mkl/latest/lib/intel64'
+ENV LIBRARY_PATH='/opt/intel/oneapi/tbb/latest/lib/intel64/gcc4.8:/opt/intel/oneapi/mkl/latest/lib/intel64'
+ENV MKLROOT='/opt/intel/oneapi/mkl/latest'
+
 # Copy
-COPY --from=builder {FRAMEWORK_BINARIES_FOLDER} /opt
+COPY --from=builder /opt/bin /opt
 
 # Install frameworks
-RUN ls /opt/.whl | xargs -I % sh -c 'python3 -m pip install /opt/%'
+RUN  ls /opt/*whl | xargs python3 -m pip install
 
 # Copy tune
 COPY . /opt/tune
+
+WORKDIR /opt/tune
+RUN python3 -m pip install -r requirements.txt
 
 WORKDIR /opt/tune
 RUN python3 -m pip install -r requirements.txt
