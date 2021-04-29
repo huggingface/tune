@@ -4,7 +4,6 @@ hydra-joblib-launcher
 torch
 tensorflow
 onnxruntime
-onnxruntime_tools
 psutil
 pandas
 rich
