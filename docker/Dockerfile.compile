@@ -133,7 +133,7 @@ RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCT
     echo "deb https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
 
 RUN apt update && apt install -y \
-    intel-oneapi-mkl-devel \
+    intel-oneapi-mkl \
     intel-oneapi-runtime-openmp && \
     rm -rf /var/lib/apt/lists/*
 
