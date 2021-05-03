@@ -100,12 +100,14 @@ class TensorflowBackend(Backend[TensorflowConfig]):
         super().__init__(model)
         self.model = model
         self.model_info = None  # Only used when working with SavedModel
-        self.local_model_path = local_model_path  # Local
+        self.local_model_path = local_model_path  # Local model path if using pre-exported SavedModel file
 
         LOGGER.info(f"Allocated TensorFlow Backend for model: {model}")
 
     @classmethod
     def allocate(cls, config: BenchmarkConfig):
+        # Check if we are using a local SavedModel file
+        # => (format <model_topology@model_local_page => bert-base-case@/path/to/savedmodel)
         if config.backend.use_saved_model_format and "@" in config.model:
             model_name, model_path = config.model.split("@")
             LOGGER.info(f"Local SavedModel format detected: model={model_name}, path={model_path}")
