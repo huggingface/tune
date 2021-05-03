@@ -30,8 +30,11 @@ from benchmark import Benchmark
 from config import BenchmarkConfig
 from utils import SEC_TO_NS_SCALE
 
-
 BACKEND_NAME = "tensorflow"
+
+SAVED_MODEL_PATH = "saved_model"
+SAVED_MODEL_TUNE_FLAG = "tune"
+
 LOGGER = getLogger("tensorflow")
 
 
@@ -44,7 +47,7 @@ def get_tf_device(device: str) -> str:
         return tf.DeviceSpec(device_type="CPU")
 
 
-def as_saved_model(tokenizer: PreTrainedTokenizer, model: TFPreTrainedModel, inputs: List, saved_model_path: Path, flag: str = "tune") -> Path:
+def as_saved_model(tokenizer: PreTrainedTokenizer, model: TFPreTrainedModel, inputs: List, saved_model_path: Path, flag: str = SAVED_MODEL_TUNE_FLAG) -> Path:
     encodings = tokenizer(inputs, is_split_into_words=True, return_tensors="tf")
 
     # Generate symbolic trace
@@ -94,7 +97,6 @@ class TensorflowConfig(BackendConfig):
 
 class TensorflowBackend(Backend[TensorflowConfig]):
     NAME = BACKEND_NAME
-    SAVED_MODEL_PATH = "saved_model"
 
     def __init__(self, model: str, local_model_path: str = None):
         super().__init__(model)
@@ -121,8 +123,8 @@ class TensorflowBackend(Backend[TensorflowConfig]):
         return backend
 
     def clean(self, config: 'BenchmarkConfig'):
-        saved_model_path = Path(TensorflowBackend.SAVED_MODEL_PATH)
-        if saved_model_path.exists() and saved_model_path.joinpath("tune"):
+        saved_model_path = Path(SAVED_MODEL_PATH)
+        if saved_model_path.exists() and saved_model_path.joinpath(SAVED_MODEL_TUNE_FLAG):
             LOGGER.debug(f"Cleaning SavedModel folder at {saved_model_path}")
             rmtree(saved_model_path)
             # saved_model_path.rmdir()
@@ -182,8 +184,8 @@ class TensorflowBackend(Backend[TensorflowConfig]):
                             inputs=self._get_dummy_inputs(
                                 1, model.config.max_position_embeddings - self.tokenizer.num_special_tokens_to_add()
                             ),
-                            saved_model_path=Path(TensorflowBackend.SAVED_MODEL_PATH),
-                            flag="tune"
+                            saved_model_path=Path(SAVED_MODEL_PATH),
+                            flag=SAVED_MODEL_TUNE_FLAG
                         )
 
                     LOGGER.debug(f"Converted SavedModel stored at {self.local_model_path}")
