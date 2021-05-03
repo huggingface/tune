@@ -21,10 +21,9 @@ from typing import Optional, Tuple, Callable, List, Set
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import Model
 from tensorflow.python.keras import Input
 from tqdm import trange
-from transformers import PreTrainedTokenizer, TFAutoModel, TFBertModel, TFPreTrainedModel, TensorType
+from transformers import PreTrainedTokenizer, TFAutoModel, TFPreTrainedModel, TensorType
 
 from backends import Backend, BackendConfig
 from benchmark import Benchmark
@@ -78,7 +77,6 @@ class TensorflowConfig(BackendConfig):
     use_saved_model_format: bool = False
     eager_mode: bool = True
     experimental_compiler: Optional[bool] = None
-    local_model_path: Optional[str] = None
 
     @staticmethod
     def version() -> str:
@@ -91,7 +89,6 @@ class TensorflowConfig(BackendConfig):
             "eager_mode",
             "experimental_compiler",
             "use_saved_model_format",
-            "local_model_path"
         })
 
 
