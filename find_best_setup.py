@@ -30,26 +30,34 @@ def optimize_latency(trial: Trial) -> float:
     parameters = {
         "instances": 1,
         "nb_cores": trial.suggest_int("nb_cores", low=1, high=cpu_info.physical_core_nums),
-        "numactl": trial.suggest_categorical("numactl", ["on", "off"]),
         "openmp": trial.suggest_categorical("openmp", ["openmp", "iomp"]),
         "allocator": trial.suggest_categorical("allocator", ["default", "tcmalloc"]),
         "huge_pages": trial.suggest_categorical("huge_pages", ["on", "off"]),
     }
+
+    if args.disable_numactl:
+        parameters["numactl"] = "off"
+
     return launch_and_wait(parameters).latency
 
 
 def optimize_throughput(trial: Trial) -> float:
+    cpu_info = CPUinfo()
     instances = [1]
-    while args.batch_size / instances[-1] > 1:
+
+    while args.batch_size / instances[-1] > 1 and cpu_info.physical_core_nums / instances[-1] > 1:
         instances.append(instances[-1] * 2)
 
     parameters = {
         "instances": trial.suggest_categorical("instances", instances),
-        "numactl": trial.suggest_categorical("numactl", ["on", "off"]),
         "openmp": trial.suggest_categorical("openmp", ["openmp", "iomp"]),
         "allocator": trial.suggest_categorical("allocator", ["default", "tcmalloc"]),
         "huge_pages": trial.suggest_categorical("huge_pages", ["on", "off"]),
     }
+
+    if args.disable_numactl:
+        parameters["numactl"] = "off"
+
     return launch_and_wait(parameters).throughput
 
 
@@ -114,6 +122,7 @@ if __name__ == '__main__':
     parser.add_argument("--framework", type=str, choices=["pytorch", "tensorflow", "torchscript", "xla", "ort"], help="The framework to evaluate")
     parser.add_argument("--mode", type=TuningMode, choices=[TuningMode.LATENCY, TuningMode.THROUGHPUT], help="The criteria to use for the benchmark")
     parser.add_argument("--n_trials", type=int, default=15, help="Number of experiments to run")
+    parser.add_argument("--disable_numactl", action="store_true", help="Disable the usage of numactl")
 
     # Parser arguments
     args = parser.parse_args()
