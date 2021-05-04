@@ -119,6 +119,10 @@ def run(config: BenchmarkConfig) -> None:
     df = benchmark.to_pandas()
     df.to_csv("results.csv", index_label="id")
 
+    # TODO: print results for Optuna
+    print(f"Latency: {float(df['latency_mean'] / 1e6)}ms")
+    print(f"Throughput: {float(df['throughput'])}it/s")
+
 
 if __name__ == '__main__':
     run()
