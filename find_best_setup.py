@@ -38,6 +38,21 @@ def optimize_latency(trial: Trial) -> float:
     return launch_and_wait(parameters).latency
 
 
+def optimize_throughput(trial: Trial) -> float:
+    instances = [1]
+    while args.batch_size / instances[-1] > 1:
+        instances.append(instances[-1] * 2)
+
+    parameters = {
+        "instances": trial.suggest_categorical("instances", instances),
+        "numactl": trial.suggest_categorical("numactl", ["on", "off"]),
+        "openmp": trial.suggest_categorical("openmp", ["openmp", "iomp"]),
+        "allocator": trial.suggest_categorical("allocator", ["default", "tcmalloc"]),
+        "huge_pages": trial.suggest_categorical("huge_pages", ["on", "off"]),
+    }
+    return launch_and_wait(parameters).throughput
+
+
 def launch_and_wait(parameters: Dict[str, Any]) -> ExperimentResult:
     cmd = [sys.executable, "launcher.py"]
 
@@ -73,6 +88,7 @@ def launch_and_wait(parameters: Dict[str, Any]) -> ExperimentResult:
     cmd += [
         "--",
         "src/main.py",
+        "benchmark_duration=60",
         f"batch_size={args.batch_size}",
         f"sequence_length={args.sequence_length}",
         f"backend={args.framework}"
@@ -108,12 +124,15 @@ if __name__ == '__main__':
         direction="minimize" if args.mode == TuningMode.LATENCY else "maximize"
     )
     args.study.optimize(
-        optimize_latency,
+        optimize_latency if args.mode == TuningMode.LATENCY else optimize_throughput,
         n_trials=args.n_trials,
         show_progress_bar=True
     )
 
+    importances = get_param_importances(args.study)
     print("Best {}: {} (params: {})\n".format(args.mode.value.lower(), args.study.best_value, args.study.best_params))
-    print(get_param_importances(args.study))
+    print("Parameter importance:")
+    for param, importance in importances.items():
+        print(f"\t- {param} -> {importance}")
 
 
