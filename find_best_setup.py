@@ -7,6 +7,7 @@ from typing import Any, Dict, NamedTuple
 
 from argparse import ArgumentParser
 from optuna import create_study, Trial
+from optuna.importance import get_param_importances
 from optuna.samplers import TPESampler
 
 from utils.cpu import CPUinfo
@@ -113,6 +114,6 @@ if __name__ == '__main__':
     )
 
     print("Best {}: {} (params: {})\n".format(args.mode.value.lower(), args.study.best_value, args.study.best_params))
-    print()
+    print(get_param_importances(args.study))
 
 
