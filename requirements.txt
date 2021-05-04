@@ -1,6 +1,5 @@
 omegaconf>=2.1.0dev20
 hydra-core>=1.1.0.dev5
-hydra-joblib-launcher
 torch
 tensorflow
 onnxruntime
