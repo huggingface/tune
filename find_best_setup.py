@@ -29,7 +29,7 @@ def optimize_latency(trial: Trial) -> float:
     parameters = {
         "instances": 1,
         "nb_cores": trial.suggest_int("nb_cores", low=1, high=cpu_info.physical_core_nums),
-        "numactl": trial.suggest_categorical("numactl", ["off"]),
+        "numactl": trial.suggest_categorical("numactl", ["on", "off"]),
         "openmp": trial.suggest_categorical("openmp", ["openmp", "iomp"]),
         "allocator": trial.suggest_categorical("allocator", ["default", "tcmalloc"]),
         "huge_pages": trial.suggest_categorical("huge_pages", ["on", "off"]),
