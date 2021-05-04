@@ -28,6 +28,7 @@ LOGGER = getLogger("benchmark")
 
 @dataclass
 class Benchmark:
+    outputs_diff: List[np.ndarray] = None
     latencies: List[float] = field(default_factory=list)
     throughput: float = float("-inf")
 
@@ -63,6 +64,9 @@ class Benchmark:
 
         LOGGER.debug(f"Tracked function took: {(end - start)}ns ({(end - start) / 1e6:.3f}ms)")
 
+    def record_outputs(self, output: np.ndarray, reference: np.ndarray):
+        self.outputs_diff = np.abs(reference - output)
+
     def finalize(self, duration_ns: int):
         self.throughput = round((len(self.latencies) / duration_ns) * SEC_TO_NS_SCALE, 2)
 
@@ -79,5 +83,9 @@ class Benchmark:
             "latency_99": np.quantile(self.latencies, 0.99),
             "latency_999": np.quantile(self.latencies, 0.999),
         }
+
+        if self.outputs_diff is not None:
+            benchmarks_stats["drift_mean"] = np.mean(self.outputs_diff)
+            benchmarks_stats["drift_std"] = np.std(self.outputs_diff)
 
         return DataFrame.from_dict(benchmarks_stats, orient="index").transpose()

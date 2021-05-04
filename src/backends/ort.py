@@ -16,7 +16,9 @@ from dataclasses import dataclass
 from logging import getLogger
 from os import getpid
 from pathlib import Path
+from typing import Set, Optional, Tuple
 
+import numpy as np
 from onnxruntime import InferenceSession, SessionOptions, GraphOptimizationLevel, ExecutionMode, __version__ as ort_version
 from onnxruntime_tools.transformers.optimizer import optimize_model
 from tqdm import trange
@@ -60,6 +62,10 @@ class OnnxRuntimeConfig(BackendConfig):
     @staticmethod
     def version() -> str:
         return ort_version
+
+    @staticmethod
+    def supported_keys() -> Set[str]:
+        return BackendConfig.supported_keys().union({"opset", "graph_optimisation_level", "execution_mode"})
 
 
 BACKEND_NAME = "onnxruntime"
@@ -118,7 +124,7 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
 
             LOGGER.info(f"\t- Setting inter_op_num_threads({self.session_opts.inter_op_num_threads})")
 
-    def execute(self, config: 'BenchmarkConfig') -> Benchmark:
+    def execute(self, config: 'BenchmarkConfig', is_reference: bool = False) -> Tuple[Benchmark, np.ndarray]:
         benchmark = Benchmark()
 
         try:
@@ -150,17 +156,23 @@ class OnnxRuntimeBackend(Backend[OnnxRuntimeConfig]):
         inputs = {k: v.astype("i8") for k, v in inputs.items()}
 
         # Warmup
+        outputs = []
         for _ in trange(config.warmup_runs, desc="Warming up"):
-            session.run(None, inputs)
+            output = session.run(None, inputs)
+            outputs.append(output[0])
 
-        # Run benchmark
-        benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
-        while sum(benchmark.latencies) < benchmark_duration_ns:
-            with benchmark.track():
-                session.run(None, inputs)
+        # Let's not run the benchmark for the reference backend,
+        # as we are more interested in the output tensors.
+        if not is_reference:
 
-        benchmark.finalize(benchmark_duration_ns)
-        return benchmark
+            # Run benchmark
+            benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
+            while sum(benchmark.latencies) < benchmark_duration_ns:
+                with benchmark.track():
+                    session.run(None, inputs)
+
+            benchmark.finalize(benchmark_duration_ns)
+        return benchmark, np.stack(outputs)
 
     def clean(self, config: 'BenchmarkConfig'):
         onnx_path = Path(ONNX_GRAPHS_FOLDER)

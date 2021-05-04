@@ -15,7 +15,9 @@
 from collections import OrderedDict
 from dataclasses import dataclass
 from logging import getLogger
+from typing import Set, Optional, Tuple
 
+import numpy as np
 import torch
 from tqdm import trange
 from transformers import AutoModel, TensorType
@@ -38,6 +40,10 @@ class PyTorchConfig(BackendConfig):
     @staticmethod
     def version() -> str:
         return torch.__version__
+
+    @staticmethod
+    def supported_keys() -> Set[str]:
+        return BackendConfig.supported_keys().union({"use_torchscript"})
 
 
 class PyTorchBackend(Backend[PyTorchConfig]):
@@ -88,13 +94,13 @@ class PyTorchBackend(Backend[PyTorchConfig]):
             self.model.config.return_dict = False
             LOGGER.info("\t+ Disabling dictionary output for TorchScript")
 
-    def execute(self, config: BenchmarkConfig) -> Benchmark:
+    def execute(self, config: BenchmarkConfig, is_reference: bool = False) -> Tuple[Benchmark, np.ndarray]:
         if config.backend.use_torchscript:
-            return self._run_torchscript(config)
+            return self._run_torchscript(config, is_reference)
         else:
-            return self._run_pytorch(config)
+            return self._run_pytorch(config, is_reference)
 
-    def _run_pytorch(self, config: BenchmarkConfig) -> Benchmark:
+    def _run_pytorch(self, config: BenchmarkConfig, is_reference: bool) -> Tuple[Benchmark, np.ndarray]:
         """
         :return:
         """
@@ -116,20 +122,26 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         self.model = self.model.to(config.device)
 
         # Warmup
+        outputs = []
         for _ in trange(config.warmup_runs, desc="Warming up"):
-            self.model(**inputs)
+            output = self.model(**inputs)
+            outputs.append(output.last_hidden_state.numpy())
 
-        # Run benchmark
-        benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
-        while sum(benchmark.latencies) < benchmark_duration_ns:
-            with benchmark.track():
-                self.model(**inputs)
+        # Let's not run the benchmark for the reference backend,
+        # as we are more interested in the output tensors.
+        if not is_reference:
 
-        benchmark.finalize(benchmark_duration_ns)
+            # Run benchmark
+            benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
+            while sum(benchmark.latencies) < benchmark_duration_ns:
+                with benchmark.track():
+                    self.model(**inputs)
 
-        return benchmark
+            benchmark.finalize(benchmark_duration_ns)
 
-    def _run_torchscript(self, config: BenchmarkConfig) -> Benchmark:
+        return benchmark, np.stack(outputs)
+
+    def _run_torchscript(self, config: BenchmarkConfig, is_reference: bool) -> Tuple[Benchmark, np.ndarray]:
         """
         :return:
         """
@@ -160,15 +172,22 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         LOGGER.debug("Calling torch JIT on model (optimize=True)")
         model_scripted = torch.jit.trace(self.model, tuple(ordered_inputs.values()))
 
+        outputs = []
         with torch.jit.optimized_execution(True):
             for _ in trange(config.warmup_runs, desc="Warming up"):
-                model_scripted(*ordered_inputs.values())
+                output = model_scripted(*ordered_inputs.values())
+                outputs.append(output.last_hidden_state.numpy())
 
-            benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
-            while sum(benchmark.latencies) < benchmark_duration_ns:
-                with benchmark.track():
-                    model_scripted(*ordered_inputs.values())
+            # Let's not run the benchmark for the reference backend,
+            # as we are more interested in the output tensors.
+            if not is_reference:
 
-            benchmark.finalize(benchmark_duration_ns)
-        return benchmark
+                # Run benchmark
+                benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
+                while sum(benchmark.latencies) < benchmark_duration_ns:
+                    with benchmark.track():
+                        model_scripted(*ordered_inputs.values())
+
+                benchmark.finalize(benchmark_duration_ns)
+        return benchmark, np.stack(outputs)
 

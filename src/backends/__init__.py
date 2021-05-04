@@ -15,8 +15,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from logging import getLogger
-from typing import Generic, TypeVar, ClassVar, List, Optional
+from typing import Generic, TypeVar, ClassVar, List, Optional, Set, Tuple
 
+import numpy as np
 from hydra.types import TargetConf
 from omegaconf import MISSING
 from psutil import cpu_count
@@ -38,6 +39,10 @@ class BackendConfig(TargetConf):
     @abstractmethod
     def version():
         raise NotImplementedError()
+
+    @staticmethod
+    def supported_keys() -> Set[str]:
+        return {"name", "version", "num_threads", "num_interops_threads"}
 
 
 BackendConfigT = TypeVar("BackendConfigT", bound=BackendConfig)
@@ -63,7 +68,7 @@ class Backend(Generic[BackendConfigT], ABC):
                 config.num_threads = cpu_count()
 
     @abstractmethod
-    def execute(self, config: 'BenchmarkConfig') -> Benchmark:
+    def execute(self, config: 'BenchmarkConfig', is_reference: bool = False) -> Tuple[Benchmark, np.ndarray]:
         raise NotImplementedError()
 
     def clean(self, config: 'BenchmarkConfig'):

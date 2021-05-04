@@ -21,3 +21,4 @@ device: cpu
 precision: float32
 num_instances: 1
 num_core_per_instance: -1
+reference: null
