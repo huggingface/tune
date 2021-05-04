@@ -20,7 +20,7 @@ from typing import Set, Optional, Tuple
 
 import numpy as np
 from onnxruntime import InferenceSession, SessionOptions, GraphOptimizationLevel, ExecutionMode, __version__ as ort_version
-from onnxruntime_tools.transformers.optimizer import optimize_model
+from onnxruntime.transformers.optimizer import optimize_model
 from tqdm import trange
 from transformers import TensorType
 from transformers.convert_graph_to_onnx import convert as onnx_convert
