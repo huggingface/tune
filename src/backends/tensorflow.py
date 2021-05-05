@@ -225,13 +225,23 @@ class TensorflowBackend(Backend[TensorflowConfig]):
             inputs = {name: tf.identity(t) for name, t in inputs.items()}
 
             # SavedModel concrete function needs unwrapped arguments ...
-            model_f = lambda x: self.model(**x) if config.backend.use_saved_model_format else self.model
+            # model_f = lambda x: self.model(**x).popitem()[1] \
+            #     if config.backend.use_saved_model_format else \
+            #     lambda x: self.model(x).last_hidden_state
+
+            @tf.function(experimental_compile=config.backend.experimental_compiler)
+            def model_f(inputs):
+                # SavedModel concrete function needs unwrapped arguments ...
+                if config.backend.use_saved_model_format:
+                    return self.model(**inputs).popitem()[1]
+                else:
+                    return self.model(inputs).last_hidden_state
 
             # Warmup
             outputs = []
             for _ in trange(config.warmup_runs, desc="Warming up"):
                 output = model_f(inputs)
-                outputs.append(output.last_hidden_state.numpy())
+                outputs.append(output.numpy())
 
             # Let's not run the benchmark for the reference backend,
             # as we are more interested in the output tensors.
@@ -252,9 +262,9 @@ class TensorflowBackend(Backend[TensorflowConfig]):
         def xla_model(inputs):
             # SavedModel concrete function needs unwrapped arguments ...
             if config.backend.use_saved_model_format:
-                return self.model(**inputs)
+                return self.model(**inputs).popitem()[1]
             else:
-                return self.model(inputs)
+                return self.model(inputs).last_hidden_state
 
         LOGGER.info("Running TensorFlow XLA benchmark")
         benchmark = Benchmark()
@@ -286,7 +296,7 @@ class TensorflowBackend(Backend[TensorflowConfig]):
                 outputs = []
                 for _ in trange(config.warmup_runs, desc="Warming up"):
                     output = xla_model(inputs)
-                    outputs.append(output.last_hidden_state.numpy())
+                    outputs.append(output.numpy())
 
                 # Let's not run the benchmark for the reference backend,
                 # as we are more interested in the output tensors.
