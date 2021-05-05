@@ -47,11 +47,17 @@ LOGGER = getLogger("benchmark")
 
 
 def get_overrided_backend_config(original_config: Union[DictConfig, BackendConfig], override: str) -> DictConfig:
+    # Copy the initial config and pop the backend
+    update_config = original_config.copy()
+    OmegaConf.set_struct(update_config, False)
+    update_config.pop("backend")
+
     # Retrieve the original backend factory
-    backend_factory: Type[Backend] = get_class(original_config._target_)
+    backend_factory: Type[Backend] = get_class(original_config.backend._target_)
 
     # Compose the two configs (reference <- original @backend==config.reference)
     reference_config = compose(config_name="benchmark", overrides=[f"backend={override}"])
+    reference_config.merge_with(update_config)
     reference_backend_factory: Type[Backend] = get_class(reference_config.backend._target_)
 
     # Retrieve each original & reference BackendConfig instance type
@@ -85,7 +91,7 @@ def run(config: BenchmarkConfig) -> None:
     # We need to allocate the reference backend (used to compare backend output against)
     if config.reference is not None and config.reference != config.backend:
         LOGGER.info(f"Using {config.reference} as reference backend")
-        reference_config = get_overrided_backend_config(config.backend, override=config.reference)
+        reference_config = get_overrided_backend_config(config, override=config.reference)
     else:
         reference_config = None
 
