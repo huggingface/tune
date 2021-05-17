@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 from collections import OrderedDict
+from contextlib import contextmanager
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Set, Optional, Tuple
@@ -30,6 +31,36 @@ from utils import SEC_TO_NS_SCALE
 
 BACKEND_NAME = "pytorch"
 LOGGER = getLogger(BACKEND_NAME)
+
+
+class CUDABenchmark(Benchmark):
+    def __init__(self):
+        super().__init__()
+
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA is not available")
+
+    @contextmanager
+    def track(self):
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+
+        start_event.record()
+        yield
+
+        end_event.record()
+        torch.cuda.synchronize()  # Wait for the events to be recorded!
+
+        # Get timing events
+        latency_ms = start_event.elapsed_time(end_event)
+
+        # Convert to nanoseconds to match Benchmark.track()
+        latency_ns = latency_ms * 1_000_000
+
+        # Append the time to the buffer
+        self.latencies.append(latency_ns)
+
+        LOGGER.debug(f"Tracked function took: {latency_ns}ns ({latency_ms:.3f}ms)")
 
 
 @dataclass
@@ -105,7 +136,7 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         :return:
         """
         LOGGER.info("Running PyTorch Eager benchmark")
-        benchmark = Benchmark()
+        benchmark = CUDABenchmark() if config.device == "cuda" else Benchmark()
 
         dummy_inputs = self._get_dummy_inputs(
             batch_size=config.batch_size,
@@ -125,7 +156,7 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         outputs = []
         for _ in trange(config.warmup_runs, desc="Warming up"):
             output = self.model(**inputs)
-            outputs.append(output.last_hidden_state.numpy())
+            outputs.append(output.last_hidden_state.cpu().numpy())
 
         # Let's not run the benchmark for the reference backend,
         # as we are more interested in the output tensors.
@@ -146,7 +177,7 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         :return:
         """
         LOGGER.info("Running TorchScript benchmark")
-        benchmark = Benchmark()
+        benchmark = CUDABenchmark() if config.device == "cuda" else Benchmark()
 
         dummy_inputs = self._get_dummy_inputs(
             batch_size=config.batch_size,
@@ -176,7 +207,7 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         with torch.jit.optimized_execution(True):
             for _ in trange(config.warmup_runs, desc="Warming up"):
                 output = model_scripted(*ordered_inputs.values())
-                outputs.append(output[0].numpy())
+                outputs.append(output[0].cpu().numpy())
 
             # Let's not run the benchmark for the reference backend,
             # as we are more interested in the output tensors.
