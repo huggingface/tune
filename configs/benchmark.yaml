@@ -4,13 +4,14 @@ defaults:
 hydra:
   run:
     dir:
-      outputs/${experiment_id}/${instance_id}
+      outputs/${experiment_name}/${experiment_id}/${instance_id}
   sweep:
-    dir: outputs/${experiment_id}/${instance_id}
+    dir: outputs/${experiment_name}/${experiment_id}/${instance_id}
   job:
     env_set:
       TOKENIZERS_PARALLELISM: "false"
 
+experiment_name: "default"
 python_version: ${python_version:}
 model: bert-base-cased
 batch_size: 1
