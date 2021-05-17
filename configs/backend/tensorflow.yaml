@@ -2,6 +2,7 @@ _target_: backends.tensorflow.TensorflowBackend
 name: tensorflow
 version: ${tensorflow_version:}
 use_xla: false
+use_saved_model_format: false
 eager_mode: true
 experimental_compiler: false
 num_threads: null

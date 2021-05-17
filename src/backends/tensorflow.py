@@ -15,21 +15,26 @@
 import contextlib
 from dataclasses import dataclass
 from logging import getLogger
-from typing import Optional, Set, Tuple
+from pathlib import Path
+from shutil import rmtree
+from typing import Optional, Tuple, Callable, List, Set
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.eager import context as tf_context
+from tensorflow.python.keras import Input
 from tqdm import trange
-from transformers import TFAutoModel, TensorType
+from transformers import PreTrainedTokenizer, TFAutoModel, TFPreTrainedModel, TensorType
 
 from backends import Backend, BackendConfig
 from benchmark import Benchmark
 from config import BenchmarkConfig
 from utils import SEC_TO_NS_SCALE
 
-
 BACKEND_NAME = "tensorflow"
+
+SAVED_MODEL_PATH = "saved_model"
+SAVED_MODEL_TUNE_FLAG = "tune"
+
 LOGGER = getLogger("tensorflow")
 
 
@@ -40,6 +45,22 @@ def get_tf_device(device: str) -> str:
         return tf.DeviceSpec(device_type="GPU")
     else:
         return tf.DeviceSpec(device_type="CPU")
+
+
+def as_saved_model(tokenizer: PreTrainedTokenizer, model: TFPreTrainedModel, inputs: List, saved_model_path: Path, flag: str = SAVED_MODEL_TUNE_FLAG) -> Path:
+    encodings = tokenizer(inputs, is_split_into_words=True, return_tensors="tf")
+
+    # Generate symbolic trace
+    tf_inputs = {name: Input((None, ), batch_size=None, dtype=tf.int32, name=name) for name, value in encodings.items()}
+    tf_outputs = model(tf_inputs)
+    tf_model = tf.keras.models.Model(inputs=tf_inputs, outputs={"output": tf_outputs[0]})
+
+    # Saved SavedModel
+    tf.saved_model.save(tf_model, saved_model_path.as_posix())
+
+    # Generate a flag file indicating this folder was generated from the tune framework
+    saved_model_path.joinpath(flag).touch()
+    return saved_model_path
 
 
 @contextlib.contextmanager
@@ -56,6 +77,7 @@ def options(options):
 class TensorflowConfig(BackendConfig):
     name: str = "tensorflow"
     use_xla: bool = False
+    use_saved_model_format: bool = False
     eager_mode: bool = True
     experimental_compiler: Optional[bool] = None
 
@@ -65,33 +87,52 @@ class TensorflowConfig(BackendConfig):
 
     @staticmethod
     def supported_keys() -> Set[str]:
-        return BackendConfig.supported_keys().union({"use_xla", "eager_mode", "experimental_compiler"})
+        return BackendConfig.supported_keys().union({
+            "use_xla",
+            "eager_mode",
+            "experimental_compiler",
+            "use_saved_model_format",
+        })
 
 
 class TensorflowBackend(Backend[TensorflowConfig]):
     NAME = BACKEND_NAME
 
-    def __init__(self, model: str):
+    def __init__(self, model: str, local_model_path: str = None):
         super().__init__(model)
         self.model = model
+        self.model_info = None  # Only used when working with SavedModel
+        self.local_model_path = local_model_path  # Local model path if using pre-exported SavedModel file
 
         LOGGER.info(f"Allocated TensorFlow Backend for model: {model}")
 
     @classmethod
     def allocate(cls, config: BenchmarkConfig):
-        backend = TensorflowBackend(config.model)
+        # Check if we are using a local SavedModel file
+        # => (format <model_topology@model_local_page => bert-base-case@/path/to/savedmodel)
+        if config.backend.use_saved_model_format and "@" in config.model:
+            model_name, model_path = config.model.split("@")
+            LOGGER.info(f"Local SavedModel format detected: model={model_name}, path={model_path}")
+
+            backend = TensorflowBackend(model_name, model_path)
+        else:
+            backend = TensorflowBackend(config.model)
+
         backend.configure(config.backend)
 
         return backend
+
+    def clean(self, config: 'BenchmarkConfig'):
+        saved_model_path = Path(SAVED_MODEL_PATH)
+        if saved_model_path.exists() and saved_model_path.joinpath(SAVED_MODEL_TUNE_FLAG):
+            LOGGER.debug(f"Cleaning SavedModel folder at {saved_model_path}")
+            rmtree(saved_model_path)
+            # saved_model_path.rmdir()
 
     def configure(self, config: TensorflowConfig):
         super().configure(config)
 
         LOGGER.info("Configuring TensorFlow Benchmark:")
-
-        # Reset TensorFlow context to allow tuning num_intraops_threads
-        # tf_context._context = None
-        # tf_context._create_context()
 
         # Eager execution should only be tuned for TensorFlow not for XLA
         if config.name == "tensorflow" and not config.eager_mode:
@@ -122,8 +163,41 @@ class TensorflowBackend(Backend[TensorflowConfig]):
                 f"))"
             )
 
-        # Postponing model allocation to tune intra/inter ops before executing any other TF related code.
-        self.model = TFAutoModel.from_pretrained(self.model)
+        # If we need to use the model as SavedModel format
+        if config.use_saved_model_format:
+
+            # Local model support
+            if self.local_model_path is None:
+                LOGGER.info(f"Converting model: {self.model} to SavedModel format")
+                with options({
+                    "constant_folding": True,
+                    "shape_optimization": True,
+                    "disable_model_pruning": False,
+                    "arithmetic_optimization": True,
+                    "function_optimization": True
+                }):
+                    with tf.device("CPU"):
+                        model = TFAutoModel.from_pretrained(self.model)
+                        self.local_model_path = as_saved_model(
+                            tokenizer=self.tokenizer,
+                            model=model,
+                            inputs=self._get_dummy_inputs(
+                                1, model.config.max_position_embeddings - self.tokenizer.num_special_tokens_to_add()
+                            ),
+                            saved_model_path=Path(SAVED_MODEL_PATH),
+                            flag=SAVED_MODEL_TUNE_FLAG
+                        )
+
+                    LOGGER.debug(f"Converted SavedModel stored at {self.local_model_path}")
+
+            # Load the model
+            saved_model_path = Path(self.local_model_path)
+            LOGGER.info(f"Loading SavedModel from {saved_model_path}")
+            self.model_info = tf.saved_model.load(saved_model_path.as_posix())
+            self.model = self.model_info.signatures["serving_default"]
+        else:
+            # Postponing model allocation to tune intra/inter ops before executing any other TF related code.
+            self.model = TFAutoModel.from_pretrained(self.model)
 
     def execute(self, config: BenchmarkConfig, is_reference: bool = False) -> Tuple[Benchmark, np.ndarray]:
         if not config.backend.use_xla:
@@ -144,17 +218,30 @@ class TensorflowBackend(Backend[TensorflowConfig]):
             inputs = self.tokenizer(
                 dummy_inputs,
                 is_split_into_words=True,
-                return_tensors=TensorType.NUMPY,
+                return_tensors=TensorType.TENSORFLOW,
             )
 
             # Move tf.constants to GPU ... https://github.com/tensorflow/tensorflow/issues/42242#issuecomment-675590057
             inputs = {name: tf.identity(t) for name, t in inputs.items()}
 
+            # SavedModel concrete function needs unwrapped arguments ...
+            # model_f = lambda x: self.model(**x).popitem()[1] \
+            #     if config.backend.use_saved_model_format else \
+            #     lambda x: self.model(x).last_hidden_state
+
+            @tf.function(experimental_compile=config.backend.experimental_compiler)
+            def model_f(inputs):
+                # SavedModel concrete function needs unwrapped arguments ...
+                if config.backend.use_saved_model_format:
+                    return self.model(**inputs).popitem()[1]
+                else:
+                    return self.model(inputs).last_hidden_state
+
             # Warmup
             outputs = []
             for _ in trange(config.warmup_runs, desc="Warming up"):
-                output = self.model(inputs)
-                outputs.append(output.last_hidden_state.numpy())
+                output = model_f(inputs)
+                outputs.append(output.numpy())
 
             # Let's not run the benchmark for the reference backend,
             # as we are more interested in the output tensors.
@@ -164,7 +251,7 @@ class TensorflowBackend(Backend[TensorflowConfig]):
                 benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
                 while sum(benchmark.latencies) < benchmark_duration_ns:
                     with benchmark.track():
-                        self.model(inputs)
+                        model_f(inputs)
 
                 benchmark.finalize(benchmark_duration_ns)
 
@@ -173,7 +260,11 @@ class TensorflowBackend(Backend[TensorflowConfig]):
     def _run_xla(self, config: BenchmarkConfig, is_reference: bool) -> Tuple[Benchmark, np.ndarray]:
         @tf.function(experimental_compile=config.backend.experimental_compiler)
         def xla_model(inputs):
-            return self.model(inputs)
+            # SavedModel concrete function needs unwrapped arguments ...
+            if config.backend.use_saved_model_format:
+                return self.model(**inputs).popitem()[1]
+            else:
+                return self.model(inputs).last_hidden_state
 
         LOGGER.info("Running TensorFlow XLA benchmark")
         benchmark = Benchmark()
@@ -205,7 +296,7 @@ class TensorflowBackend(Backend[TensorflowConfig]):
                 outputs = []
                 for _ in trange(config.warmup_runs, desc="Warming up"):
                     output = xla_model(inputs)
-                    outputs.append(output.last_hidden_state.numpy())
+                    outputs.append(output.numpy())
 
                 # Let's not run the benchmark for the reference backend,
                 # as we are more interested in the output tensors.
