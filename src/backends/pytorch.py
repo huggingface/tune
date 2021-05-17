@@ -176,7 +176,7 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         with torch.jit.optimized_execution(True):
             for _ in trange(config.warmup_runs, desc="Warming up"):
                 output = model_scripted(*ordered_inputs.values())
-                outputs.append(output.last_hidden_state.numpy())
+                outputs.append(output[0].numpy())
 
             # Let's not run the benchmark for the reference backend,
             # as we are more interested in the output tensors.
