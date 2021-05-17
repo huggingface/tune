@@ -67,6 +67,7 @@ class CUDABenchmark(Benchmark):
 class PyTorchConfig(BackendConfig):
     name: str = "pytorch"
     use_torchscript: bool = False
+    use_tf32: bool = False
 
     @staticmethod
     def version() -> str:
@@ -74,7 +75,7 @@ class PyTorchConfig(BackendConfig):
 
     @staticmethod
     def supported_keys() -> Set[str]:
-        return BackendConfig.supported_keys().union({"use_torchscript"})
+        return BackendConfig.supported_keys().union({"use_torchscript", "use_tf32"})
 
 
 class PyTorchBackend(Backend[PyTorchConfig]):
@@ -101,6 +102,19 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         # Disable gradients
         torch.set_grad_enabled(False)
         LOGGER.info("\t+ Disabled gradients")
+
+        # Tune Nvidia's TF32 support
+        if torch.has_cuda and torch.cuda.is_available():
+            if hasattr(torch.backends.cuda, "matmul") and hasattr(torch.backends.cuda.matmul, "allow_tf32"):
+                torch.backends.cuda.matmul.allow_tf32 = config.use_tf32
+                LOGGER.info(f"\t+ CUDA allows Nvidia's TF32: { torch.backends.cuda.matmul.allow_tf32 }")
+
+        if torch.has_cudnn and torch.backends.cudnn.is_available():
+
+            if hasattr(torch.backends.cudnn, "allow_tf32"):
+                # The flag below controls whether to allow TF32 on cuDNN.
+                torch.backends.cudnn.allow_tf32 = config.use_tf32
+                LOGGER.info(f"\t+ CuDNN allows Nvidia's TF32: { torch.backends.cudnn.allow_tf32 }")
 
         self.model.eval()
         LOGGER.info("\t+ Turning eval mode on Module (model.eval())")
