@@ -71,6 +71,9 @@ class BenchmarkConfig:
     # Experiment identifier
     experiment_id: str = hexlify(getrandbits(32).to_bytes(4, 'big')).decode('ascii')
 
+    # Experiment name
+    experiment_name: str = "default"
+
     # Identifier for the current instance. Allow to create specific instance config folder
     instance_id: int = 0
 
