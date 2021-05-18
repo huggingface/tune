@@ -22,25 +22,21 @@ from hydra.utils import get_class
 from omegaconf import OmegaConf, DictConfig
 
 from backends import Backend, BackendConfig
-from backends.ort import OnnxRuntimeConfig
-from backends.pytorch import PyTorchConfig
-from backends.tensorflow import TensorflowConfig
+#from backends.ort import OnnxRuntimeConfig
+#from backends.tensorflow import TensorflowConfig
 from config import BenchmarkConfig
 
 
 # Register resolvers
-OmegaConf.register_new_resolver("pytorch_version", PyTorchConfig.version)
-OmegaConf.register_new_resolver("tensorflow_version", TensorflowConfig.version)
-OmegaConf.register_new_resolver("ort_version", OnnxRuntimeConfig.version)
+#OmegaConf.register_new_resolver("tensorflow_version", TensorflowConfig.version)
+#OmegaConf.register_new_resolver("ort_version", OnnxRuntimeConfig.version)
 
 # Register configurations
 cs = ConfigStore.instance()
 cs.store(name="benchmark", node=BenchmarkConfig)
-cs.store(group="backend", name="pytorch_backend", node=PyTorchConfig)
-cs.store(group="backend", name="torchscript_backend", node=PyTorchConfig)
-cs.store(group="backend", name="tensorflow_backend", node=TensorflowConfig)
-cs.store(group="backend", name="xla_backend", node=TensorflowConfig)
-cs.store(group="backend", name="ort_backend", node=OnnxRuntimeConfig)
+#cs.store(group="backend", name="tensorflow_backend", node=TensorflowConfig)
+#cs.store(group="backend", name="xla_backend", node=TensorflowConfig)
+#cs.store(group="backend", name="ort_backend", node=OnnxRuntimeConfig)
 
 
 LOGGER = getLogger("benchmark")
@@ -88,6 +84,20 @@ def get_overrided_backend_config(original_config: Union[DictConfig, BackendConfi
 
 @hydra.main(config_path="../configs", config_name="benchmark")
 def run(config: BenchmarkConfig) -> None:
+    backend_name = config.backend._target_.split('.')[-1].replace('Backend', '')
+    if backend_name == 'PyTorch':
+        from backends.pytorch import PyTorchConfig
+        OmegaConf.register_new_resolver("pytorch_version", PyTorchConfig.version)
+        cs.store(group="backend", name="pytorch_backend", node=PyTorchConfig)
+        cs.store(group="backend", name="torchscript_backend", node=PyTorchConfig)
+    elif backend_name == 'IPEX':
+        from backends.ipex import IPEXConfig
+        OmegaConf.register_new_resolver("ipex_version", IPEXConfig.version)
+        cs.store(group="backend", name="ipex_backend", node=IPEXConfig)
+        cs.store(group="backend", name="ipextorchscript_backend", node=IPEXConfig)
+    else:
+        return
+
     # We need to allocate the reference backend (used to compare backend output against)
     if config.reference is not None and config.reference != config.backend:
         LOGGER.info(f"Using {config.reference} as reference backend")
