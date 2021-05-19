@@ -53,7 +53,7 @@ class BenchmarkConfig:
     # The dtype of the model to run inference with (float32, float16, int8, bfloat16)
     precision: str = MISSING
 
-    # Use Transparent Huge Page mechanis to increase CPU cache hit probability
+    # Use Transparent Huge Page mechanism to increase CPU cache hit probability
     use_huge_page: str = MISSING
 
     # Number of sample given to the model at each forward
