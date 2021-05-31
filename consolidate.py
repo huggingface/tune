@@ -118,6 +118,10 @@ def gather_results(folder: Path) -> Tuple[pd.DataFrame, List[str]]:
     existing_columns = list(set(FINAL_COLUMNS_ORDERING).intersection(results_df.columns))
     results_df = results_df.sort_values(existing_columns)
 
+    # Ensure the number of instances (according to the sum of instance_sum) matchs num_instances field
+    results_df["is_valid"] = results_df.groupby(MULTI_INSTANCES_VALIDATION_COLUMNS)["instance_id"].transform("count")
+    results_df["is_valid"] = results_df["is_valid"] == results_df["num_instances"]
+
     results_df.fillna("N/A", inplace=True)
     if len(results_df) == 0:
         raise ValueError(f"No results.csv file were found in {folder}")
@@ -127,11 +131,6 @@ def gather_results(folder: Path) -> Tuple[pd.DataFrame, List[str]]:
 
 def aggregate_multi_instances_results(results_df: pd.DataFrame, sorting_columns: List[str], mode: str):
     agg_df = results_df.copy()
-
-    # Ensure the number of instances (according to the sum of instance_sum) matchs num_instances field
-    agg_df["is_valid"] = agg_df.groupby(MULTI_INSTANCES_VALIDATION_COLUMNS)["instance_id"].transform("count")
-    agg_df["is_valid"] = agg_df["is_valid"] == agg_df["num_instances"]
-
     agg_df = agg_df.groupby(sorting_columns)
     transforms = {
         "latency_mean": ["max"],
