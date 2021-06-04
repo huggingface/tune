@@ -74,7 +74,7 @@ SUMMARY_SUMMING_COLUMNS = {
     "batch_size",
 }
 
-FINAL_COLUMNS_ORDERING = ["backend.name", "batch_size", "sequence_length", "openmp.backend", "malloc", "use_huge_page"]
+FINAL_COLUMNS_ORDERING = ["backend.name", "batch_size", "sequence_length", "openmp.backend", "malloc", "use_huge_page", "num_instances", "instance_id"]
 RICH_DISPLAYED_COLUMNS = {
     "backend.name": "Backend",
     "malloc": "Malloc",
@@ -87,6 +87,16 @@ RICH_DISPLAYED_COLUMNS = {
     "throughput": "Throughput",
     "num_core_per_instance": "Cores"
 }
+
+MULTI_INSTANCES_VALIDATION_COLUMNS = [
+    "batch_size",
+    "sequence_length",
+    "backend.name",
+    "openmp.backend",
+    "malloc",
+    "backend.num_threads",
+    "use_huge_page"
+]
 
 
 def flatten_yaml(path: Path, loader: Type[yaml.Loader] = yaml.SafeLoader) -> pd.DataFrame:
@@ -108,6 +118,10 @@ def gather_results(folder: Path) -> Tuple[pd.DataFrame, List[str]]:
     existing_columns = list(set(FINAL_COLUMNS_ORDERING).intersection(results_df.columns))
     results_df = results_df.sort_values(existing_columns)
 
+    # Ensure the number of instances (according to the sum of instance_sum) matchs num_instances field
+    results_df["is_valid"] = results_df.groupby(MULTI_INSTANCES_VALIDATION_COLUMNS)["instance_id"].transform("count")
+    results_df["is_valid"] = results_df["is_valid"] == results_df["num_instances"]
+
     results_df.fillna("N/A", inplace=True)
     if len(results_df) == 0:
         raise ValueError(f"No results.csv file were found in {folder}")
@@ -118,7 +132,6 @@ def gather_results(folder: Path) -> Tuple[pd.DataFrame, List[str]]:
 def aggregate_multi_instances_results(results_df: pd.DataFrame, sorting_columns: List[str], mode: str):
     agg_df = results_df.copy()
     agg_df = agg_df.groupby(sorting_columns)
-
     transforms = {
         "latency_mean": ["max"],
         "throughput": ["sum"],
