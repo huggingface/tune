@@ -279,6 +279,9 @@ def set_memory_allocator(args):
         else:
             LOGGER.info("Use JeMalloc memory allocator")
             args.additional_benchmark_args.append("+malloc=jemalloc")
+            if "MALLOC_CONF" not in os.environ:
+                os.environ["MALLOC_CONF"] = args.malloc_conf
+            LOGGER.info("MALLOC_CONF={}".format(os.environ["MALLOC_CONF"]))
 
     elif args.use_default_allocator:
         args.additional_benchmark_args.append("+malloc=std")
@@ -288,6 +291,9 @@ def set_memory_allocator(args):
         if find_tc:
             LOGGER.info("Use TCMalloc memory allocator")
             args.additional_benchmark_args.append("+malloc=tcmalloc")
+            if "MALLOC_CONF" not in os.environ:
+                os.environ["MALLOC_CONF"] = args.malloc_conf
+            LOGGER.info("MALLOC_CONF={}".format(os.environ["MALLOC_CONF"]))
             return
 
         find_je = add_lib_preload(lib_type="jemalloc")
@@ -652,6 +658,9 @@ def add_memory_allocator_params(parser):
                        help="Enable jemalloc allocator")
     group.add_argument("--use_default_allocator",  action='store_true', default=False,
                        help="Use default memory allocator")
+    group.add_argument("--malloc_conf", metavar='\b', default="oversize_threshold:1,background_thread:true,metadata_thp:auto,dirty_decay_ms:9000000000,muzzy_decay_ms:9000000000", type=str,
+                       help="MALLOC_CONF setup, for jemalloc only, environment variable has higher priority than this args."
+                       "default value is : oversize_threshold:1,background_thread:true,metadata_thp:auto,dirty_decay_ms:9000000000,muzzy_decay_ms:9000000000")
 
     # transparent huge pages
     group.add_argument("--enable_thp", action="store_true", default=False, help="Enable Transparent Huge Pages")
