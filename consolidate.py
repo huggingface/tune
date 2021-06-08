@@ -129,9 +129,9 @@ def gather_results(folder: Path) -> Tuple[pd.DataFrame, List[str]]:
     return results_df, existing_columns
 
 
-def aggregate_multi_instances_results(results_df: pd.DataFrame, sorting_columns: List[str], mode: str):
+def aggregate_multi_instances_results(results_df: pd.DataFrame, grouping_columns: List[str], mode: str):
     agg_df = results_df.copy()
-    agg_df = agg_df.groupby(sorting_columns)
+    agg_df = agg_df.groupby(grouping_columns)
     transforms = {
         "latency_mean": ["max"],
         "throughput": ["sum"],
