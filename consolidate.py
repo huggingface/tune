@@ -133,8 +133,9 @@ def aggregate_multi_instances_results(results_df: pd.DataFrame, grouping_columns
     agg_df = results_df.copy()
     agg_df = agg_df.groupby(grouping_columns)
     transforms = {
-        "latency_mean": ["max"],
+        "latency_mean": ["min", "max", "mean"],
         "throughput": ["sum"],
+        "is_valid": ["all"]
     }
 
     # How to aggregate cores and batch
