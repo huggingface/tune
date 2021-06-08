@@ -20,6 +20,7 @@ from typing import Set, Optional, Tuple
 
 import numpy as np
 import torch
+from torch.profiler import tensorboard_trace_handler
 from tqdm import trange
 from transformers import AutoModel, TensorType
 
@@ -177,13 +178,21 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         # Let's not run the benchmark for the reference backend,
         # as we are more interested in the output tensors.
         if not is_reference:
-
-            # Run benchmark
-            benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
-            while sum(benchmark.latencies) < benchmark_duration_ns:
-                with torch.cuda.amp.autocast(config.precision == "float16"):
-                    with benchmark.track():
-                        self.model(**inputs)
+            with torch.profiler.profile(
+                on_trace_ready=tensorboard_trace_handler('tb'),
+                with_stack=True,
+                with_flops=True,
+                record_shapes=True,
+                use_cuda=False,
+                profile_memory=True
+            ) as profiler:
+                # Run benchmark
+                benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
+                while sum(benchmark.latencies) < benchmark_duration_ns:
+                    with torch.cuda.amp.autocast(config.precision == "float16"):
+                        with benchmark.track():
+                            self.model(**inputs)
+                        profiler.step()
 
             benchmark.finalize(benchmark_duration_ns)
 
