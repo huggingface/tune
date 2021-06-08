@@ -74,7 +74,7 @@ SUMMARY_SUMMING_COLUMNS = {
     "batch_size",
 }
 
-FINAL_COLUMNS_ORDERING = ["backend.name", "batch_size", "sequence_length", "openmp.backend", "malloc", "use_huge_page", "num_instances", "instance_id"]
+FINAL_COLUMNS_ORDERING = ["backend.name", "batch_size", "sequence_length", "openmp.backend", "malloc", "use_huge_page"]
 RICH_DISPLAYED_COLUMNS = {
     "backend.name": "Backend",
     "malloc": "Malloc",
