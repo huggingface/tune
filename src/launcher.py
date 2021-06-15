@@ -336,7 +336,7 @@ def set_multi_thread_and_allocator(args):
         os.environ["KMP_AFFINITY"] = args.kmp_affinity
 
     if "KMP_BLOCKTIME" not in os.environ:
-        os.environ["KMP_BLOCKTIME"] = "1"
+        os.environ["KMP_BLOCKTIME"] = args.kmp_blocktime
 
     if "DNNL_PRIMITIVE_CACHE_CAPACITY" not in os.environ:
         os.environ["DNNL_PRIMITIVE_CACHE_CAPACITY"] = '1024'
@@ -695,6 +695,9 @@ def add_kmp_iomp_params(parser):
     group.add_argument("--kmp_affinity", metavar='\b', default="granularity=fine,compact,1,0", type=str,
                        help="KMP_AFFINITY setup, environment variable has higher priority than this args."
                             "default value is : granularity=fine,compact,1,0")
+    group.add_argument("--kmp_blocktime", metavar='\b', default="1", type=str,
+                       help="KMP_BLOCKTIME setup, environment variable has higher priority than this args."
+                            "default value is : 1")
     group.add_argument("--omp_max_active_levels", type=int, default=1, help="Set OMP_MAX_ACTIVE_LEVELS env var.")
     group.add_argument("--enable_iomp", action='store_true', default=False,
                        help="Enable iomp and libiomp.so will be add to LD_PRELOAD")
