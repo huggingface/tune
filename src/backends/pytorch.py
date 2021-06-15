@@ -189,13 +189,13 @@ class PyTorchBackend(Backend[PyTorchConfig]):
             with torch.cuda.amp.autocast(config.precision == "float16"):
                 while sum(benchmark.latencies) < benchmark_duration_ns:
                     with benchmark.track():
-                          itt.task_begin(self.domain, 'measure_{}'.format(index))
-                          self.model(**inputs)
-                          itt.task_end(self.domain)
-                    #     with torch.autograd.profiler.profile(record_shapes=True) as prof:
-                    #         self.model(**inputs)
-                    #     with open('torch_{:04d}.txt'.format(index), 'w') as f:
-                    #         f.write(prof.key_averages().table(sort_by="self_cpu_time_total"))
+                        #itt.task_begin(self.domain, 'measure_{}'.format(index))
+                        #self.model(**inputs)
+                        #itt.task_end(self.domain)
+                        with torch.autograd.profiler.profile(record_shapes=True) as prof:
+                            self.model(**inputs)
+                        with open('torch_{:04d}.txt'.format(index), 'w') as f:
+                            f.write(prof.key_averages().table(sort_by="self_cpu_time_total"))
                     index = index + 1
 
                 benchmark.finalize(benchmark_duration_ns)
@@ -256,13 +256,13 @@ class PyTorchBackend(Backend[PyTorchConfig]):
                     with torch.cuda.amp.autocast(config.precision == "float16"):
                         while sum(benchmark.latencies) < benchmark_duration_ns:
                             with benchmark.track():
-                                itt.task_begin(self.domain, 'measure_{}'.format(index))
-                                model_scripted(*ordered_inputs.values())
-                                itt.task_end(self.domain)
-                                # with torch.autograd.profiler.profile(record_shapes=True) as prof:
-                                #     model_scripted(*ordered_inputs.values())
-                                # with open('torchscript_{:04d}.txt'.format(index), 'w') as f:
-                                #     f.write(prof.key_averages().table(sort_by="self_cpu_time_total"))
+                                #itt.task_begin(self.domain, 'measure_{}'.format(index))
+                                #model_scripted(*ordered_inputs.values())
+                                #itt.task_end(self.domain)
+                                with torch.autograd.profiler.profile(record_shapes=True) as prof:
+                                    model_scripted(*ordered_inputs.values())
+                                with open('torchscript_{:04d}.txt'.format(index), 'w') as f:
+                                    f.write(prof.key_averages().table(sort_by="self_cpu_time_total"))
                             index = index + 1
 
                     benchmark.finalize(benchmark_duration_ns)
