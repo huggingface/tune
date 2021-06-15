@@ -74,7 +74,7 @@ SUMMARY_SUMMING_COLUMNS = {
     "batch_size",
 }
 
-FINAL_COLUMNS_ORDERING = ["backend.name", "batch_size", "sequence_length", "openmp.backend", "malloc", "use_huge_page", "num_instances", "instance_id"]
+FINAL_COLUMNS_ORDERING = ["backend.name", "batch_size", "sequence_length", "openmp.backend", "malloc", "use_huge_page"]
 RICH_DISPLAYED_COLUMNS = {
     "backend.name": "Backend",
     "malloc": "Malloc",
@@ -106,7 +106,7 @@ def flatten_yaml(path: Path, loader: Type[yaml.Loader] = yaml.SafeLoader) -> pd.
     return pd.json_normalize(content)
 
 
-def gather_results(folder: Path) -> Tuple[pd.DataFrame, List[str]]:
+def gather_results(folder: Path, is_multi_instances: bool) -> Tuple[pd.DataFrame, List[str]]:
     # List all csv results
     results_f = [(f, f.parent.joinpath(".hydra/config.yaml")) for f in folder.glob("**/results.csv")]
     results_df = pd.concat([
@@ -119,8 +119,11 @@ def gather_results(folder: Path) -> Tuple[pd.DataFrame, List[str]]:
     results_df = results_df.sort_values(existing_columns)
 
     # Ensure the number of instances (according to the sum of instance_sum) matchs num_instances field
-    results_df["is_valid"] = results_df.groupby(MULTI_INSTANCES_VALIDATION_COLUMNS)["instance_id"].transform("count")
-    results_df["is_valid"] = results_df["is_valid"] == results_df["num_instances"]
+    if is_multi_instances:
+        results_df["is_valid"] = results_df.groupby(MULTI_INSTANCES_VALIDATION_COLUMNS)["instance_id"].transform("count")
+        results_df["is_valid"] = results_df["is_valid"] == results_df["num_instances"]
+    else:
+        results_df["is_valid"] = True
 
     results_df.fillna("N/A", inplace=True)
     if len(results_df) == 0:
@@ -129,12 +132,13 @@ def gather_results(folder: Path) -> Tuple[pd.DataFrame, List[str]]:
     return results_df, existing_columns
 
 
-def aggregate_multi_instances_results(results_df: pd.DataFrame, sorting_columns: List[str], mode: str):
+def aggregate_multi_instances_results(results_df: pd.DataFrame, grouping_columns: List[str], mode: str):
     agg_df = results_df.copy()
-    agg_df = agg_df.groupby(sorting_columns)
+    agg_df = agg_df.groupby(grouping_columns)
     transforms = {
-        "latency_mean": ["max"],
+        "latency_mean": ["min", "max", "mean"],
         "throughput": ["sum"],
+        "is_valid": ["all"]
     }
 
     # How to aggregate cores and batch
@@ -228,7 +232,7 @@ if __name__ == '__main__':
         args.output_folder.mkdir(exist_ok=True, parents=True)
 
         # Gather the results to manipulate
-        consolidated_df, sorting_columns = gather_results(args.results_folder)
+        consolidated_df, sorting_columns = gather_results(args.results_folder, args.is_multi_instances)
 
         if args.is_multi_instances and args.multi_instances_scaling is not None:
             agg_df = aggregate_multi_instances_results(consolidated_df, sorting_columns, args.multi_instances_scaling)
