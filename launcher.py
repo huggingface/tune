@@ -39,16 +39,16 @@ LOGGER = logging.getLogger(__name__)
 
 r"""
 This is a script for launching PyTorch training and inference on Intel Xeon CPU with optimal configurations.
-Now, single instance inference/training, multi-instance inference/training and distributed training 
+Now, single instance inference/training, multi-instance inference/training and distributed training
 with oneCCL backend is enabled.
 
-To get the peak performance on Intel Xeon CPU, the script optimizes the configuration of thread and memory 
-management. For thread management, the script configures thread affinity and the preload of Intel OMP library. 
+To get the peak performance on Intel Xeon CPU, the script optimizes the configuration of thread and memory
+management. For thread management, the script configures thread affinity and the preload of Intel OMP library.
 For memory management, it configures NUMA binding and preload optimized memory allocation library (e.g. tcmalloc, jemalloc).
- 
+
 **How to use this module:**
 
-*** Single instance inference/training *** 
+*** Single instance inference/training ***
 
 1. Run single-instance inference or training on a single node with all CPU sockets.
 
@@ -62,16 +62,15 @@ For memory management, it configures NUMA binding and preload optimized memory a
 
    >>> python -m intel_pytorch_extension.launch --socket_id 1 script.py args
 
-*** Multi-instance inference *** 
+*** Multi-instance inference ***
 
-1. Multi-instance 
-   By default, one instance per socket. if you want to set the instance numbers and core per instance,  
-   --nintances and  --ncore_per_instance should be set. 
+1. Multi-instance
+   By default, one instance per socket. if you want to set the instance numbers and core per instance, --nintances and  --ncore_per_instance should be set.
 
-   
+
    >>> python -m intel_pytorch_extension.launch --multi_instance python_script args
 
-   eg: on CLX8280 with 14 instance, 4 cores per instance 
+   eg: on CLX8280 with 14 instance, 4 cores per instance
 ::
 
    >>> python -m intel_pytorch_extension.launch --multi_instance --nintances 14 --ncore_per_instance 4 python_script args
@@ -79,11 +78,11 @@ For memory management, it configures NUMA binding and preload optimized memory a
 
 *** Distributed Training ***
 
-spawns up multiple distributed training processes on each of the training nodes. For intel_pytorch_extension, oneCCL 
-is used as the communication backend and MPI used to launch multi-proc. To get the better 
-performance, you should specify the different cores for oneCCL communication and computation 
+spawns up multiple distributed training processes on each of the training nodes. For intel_pytorch_extension, oneCCL
+is used as the communication backend and MPI used to launch multi-proc. To get the better
+performance, you should specify the different cores for oneCCL communication and computation
 process seperately. This tool can automatically set these ENVs(such as I_MPI_PIN_DOMIN) and launch
-multi-proc for you.   
+multi-proc for you.
 
 The utility can be used for single-node distributed training, in which one or
 more processes per node will be spawned.  It can also be used in
@@ -106,7 +105,7 @@ rank 0: *(IP: 192.168.10.10, and has a free port: 295000)*
 ::
 
     >>> python -m intel_pytorch_extension.launch --distributed --nproc_per_node=xxx
-               --nnodes=2 --hostfile hostfile python_sript --arg1 --arg2 --arg3 
+               --nnodes=2 --hostfile hostfile python_sript --arg1 --arg2 --arg3
                and all other arguments of your training script)
 
 
@@ -118,7 +117,7 @@ rank 0: *(IP: 192.168.10.10, and has a free port: 295000)*
 
 *** Memory allocator  ***
 
-"--enable_tcmalloc" and "--enable_jemalloc" can be used to enable different memory allcator. 
+"--enable_tcmalloc" and "--enable_jemalloc" can be used to enable different memory allcator.
 
 """
 
@@ -234,7 +233,9 @@ def add_lib_preload(lib_type=None):
 
     lib_find = False
     for lib_path in library_paths:
-        library_file = lib_path + "lib" + lib_type + ".so*"
+        if not lib_path.endswith("/"):
+            lib_path += "/"
+        library_file = lib_path + "lib" + lib_type + ".so"
         matches = glob.glob(library_file)
         if len(matches) > 0:
             if "LD_PRELOAD" in os.environ:
@@ -300,6 +301,9 @@ def set_memory_allocator(args):
         if find_je:
             LOGGER.info("Use JeMalloc memory allocator")
             args.additional_benchmark_args.append("+malloc=jemalloc")
+            if "MALLOC_CONF" not in os.environ:
+                os.environ["MALLOC_CONF"] = args.malloc_conf
+            LOGGER.info("MALLOC_CONF={}".format(os.environ["MALLOC_CONF"]))
             return
 
         LOGGER.warning(
@@ -319,8 +323,8 @@ def set_multi_thread_and_allocator(args):
         SUDOER_PASSWORD = getpass("Setting Transparent Huge Page requires elevated privileges.\nPassword:")
         set_transparent_huge_pages("always", SUDOER_PASSWORD)
 
-    os.environ["THP_STATUS"] = get_transparent_huge_pages()
-    args.additional_benchmark_args.append(f"use_huge_page={os.environ['THP_STATUS']}")
+    if "THP_STATUS" not in os.environ:
+        os.environ["THP_STATUS"] = get_transparent_huge_pages()
 
     if "OMP_NUM_THREADS" not in os.environ:
         os.environ["OMP_NUM_THREADS"] = str(args.ncore_per_instance)
@@ -336,7 +340,7 @@ def set_multi_thread_and_allocator(args):
         os.environ["KMP_AFFINITY"] = args.kmp_affinity
 
     if "KMP_BLOCKTIME" not in os.environ:
-        os.environ["KMP_BLOCKTIME"] = "1"
+        os.environ["KMP_BLOCKTIME"] = args.kmp_blocktime
 
     if "DNNL_PRIMITIVE_CACHE_CAPACITY" not in os.environ:
         os.environ["DNNL_PRIMITIVE_CACHE_CAPACITY"] = '1024'
@@ -365,6 +369,7 @@ def set_multi_thread_and_allocator(args):
     args.additional_benchmark_args.append(f"+openmp.max_active_levels={os.environ['OMP_MAX_ACTIVE_LEVELS']}")
     args.additional_benchmark_args.append(f'+openmp.affinity="{os.environ["KMP_AFFINITY"]}"')
     args.additional_benchmark_args.append(f"+openmp.blocktime={os.environ['KMP_BLOCKTIME']}")
+    args.additional_benchmark_args.append(f"use_huge_page={os.environ['THP_STATUS']}")
 
 
 def launch(args):
@@ -568,7 +573,7 @@ def mpi_dist_launch(args):
         os.environ["CCL_ATL_TRANSPORT"] = "ofi"
 
     if args.enable_iomp:
-        find_iomp = add_lib_preload(lib_type="iomp")
+        find_iomp = add_lib_preload(lib_type="iomp5")
         if not find_iomp:
             LOGGER.warning("Unable to find the {} library file lib{}.so in $CONDA_PREFIX/lib or  /.local/lib/"
                            " or /usr/local/lib/ or /usr/local/lib64/ or /usr/lib or /usr/lib64 or "
@@ -695,9 +700,12 @@ def add_kmp_iomp_params(parser):
     group.add_argument("--kmp_affinity", metavar='\b', default="granularity=fine,compact,1,0", type=str,
                        help="KMP_AFFINITY setup, environment variable has higher priority than this args."
                             "default value is : granularity=fine,compact,1,0")
+    group.add_argument("--kmp_blocktime", metavar='\b', default="1", type=str,
+                       help="KMP_BLOCKTIME setup, environment variable has higher priority than this args."
+                            "default value is : 1")
     group.add_argument("--omp_max_active_levels", type=int, default=1, help="Set OMP_MAX_ACTIVE_LEVELS env var.")
     group.add_argument("--enable_iomp", action='store_true', default=False,
-                       help="Enable iomp and libiomp.so will be add to LD_PRELOAD")
+                       help="Enable iomp and libiomp5.so will be add to LD_PRELOAD")
 
 
 def parse_system_info(args):

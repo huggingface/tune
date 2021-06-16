@@ -166,13 +166,12 @@ class PyTorchBackend(Backend[PyTorchConfig]):
         inputs = inputs.to(config.device)
         self.model = self.model.to(config.device)
 
-        # WarmupE
+        # Warmup
         outputs = []
-        for _ in trange(config.warmup_runs, desc="Warming up"):
-
-            with torch.cuda.amp.autocast(config.precision == "float16"):
+        with torch.cuda.amp.autocast(config.precision == "float16"):
+            for _ in trange(config.warmup_runs, desc="Warming up"):
                 output = self.model(**inputs)
-            outputs.append(output.last_hidden_state.cpu().numpy())
+                outputs.append(output.last_hidden_state.cpu().numpy())
 
         # Let's not run the benchmark for the reference backend,
         # as we are more interested in the output tensors.
@@ -180,12 +179,12 @@ class PyTorchBackend(Backend[PyTorchConfig]):
 
             # Run benchmark
             benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
-            while sum(benchmark.latencies) < benchmark_duration_ns:
-                with torch.cuda.amp.autocast(config.precision == "float16"):
+            with torch.cuda.amp.autocast(config.precision == "float16"):
+                while sum(benchmark.latencies) < benchmark_duration_ns:
                     with benchmark.track():
                         self.model(**inputs)
 
-            benchmark.finalize(benchmark_duration_ns)
+                benchmark.finalize(benchmark_duration_ns)
 
         return benchmark, np.stack(outputs)
 
@@ -222,22 +221,22 @@ class PyTorchBackend(Backend[PyTorchConfig]):
 
         outputs = []
         with torch.jit.optimized_execution(True):
-            for _ in trange(config.warmup_runs, desc="Warming up"):
-                with torch.cuda.amp.autocast(config.precision == "float16"):
+            with torch.cuda.amp.autocast(config.precision == "float16"):
+                for _ in trange(config.warmup_runs, desc="Warming up"):
                     output = model_scripted(*ordered_inputs.values())
-                outputs.append(output[0].cpu().numpy())
+                    outputs.append(output[0].cpu().numpy())
 
             # Let's not run the benchmark for the reference backend,
             # as we are more interested in the output tensors.
             if not is_reference:
 
-                # Run benchmark
-                benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
-                while sum(benchmark.latencies) < benchmark_duration_ns:
+                    # Run benchmark
+                    benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
                     with torch.cuda.amp.autocast(config.precision == "float16"):
-                        with benchmark.track():
-                            model_scripted(*ordered_inputs.values())
+                        while sum(benchmark.latencies) < benchmark_duration_ns:
+                            with benchmark.track():
+                                model_scripted(*ordered_inputs.values())
 
-                benchmark.finalize(benchmark_duration_ns)
+                    benchmark.finalize(benchmark_duration_ns)
         return benchmark, np.stack(outputs)
 
