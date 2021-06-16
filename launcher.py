@@ -322,8 +322,9 @@ def set_multi_thread_and_allocator(args):
     if args.enable_thp:
         SUDOER_PASSWORD = getpass("Setting Transparent Huge Page requires elevated privileges.\nPassword:")
         set_transparent_huge_pages("always", SUDOER_PASSWORD)
+
+    if "THP_STATUS" not in os.environ:
         os.environ["THP_STATUS"] = get_transparent_huge_pages()
-        args.additional_benchmark_args.append(f"use_huge_page={os.environ['THP_STATUS']}")
 
     if "OMP_NUM_THREADS" not in os.environ:
         os.environ["OMP_NUM_THREADS"] = str(args.ncore_per_instance)
@@ -368,6 +369,7 @@ def set_multi_thread_and_allocator(args):
     args.additional_benchmark_args.append(f"+openmp.max_active_levels={os.environ['OMP_MAX_ACTIVE_LEVELS']}")
     args.additional_benchmark_args.append(f'+openmp.affinity="{os.environ["KMP_AFFINITY"]}"')
     args.additional_benchmark_args.append(f"+openmp.blocktime={os.environ['KMP_BLOCKTIME']}")
+    args.additional_benchmark_args.append(f"use_huge_page={os.environ['THP_STATUS']}")
 
 
 def launch(args):
