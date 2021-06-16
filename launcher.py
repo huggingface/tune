@@ -65,8 +65,7 @@ For memory management, it configures NUMA binding and preload optimized memory a
 *** Multi-instance inference ***
 
 1. Multi-instance
-   By default, one instance per socket. if you want to set the instance numbers and core per instance,
-   --nintances and  --ncore_per_instance should be set.
+   By default, one instance per socket. if you want to set the instance numbers and core per instance, --nintances and  --ncore_per_instance should be set.
 
 
    >>> python -m intel_pytorch_extension.launch --multi_instance python_script args
