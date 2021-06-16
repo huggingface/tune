@@ -1,6 +1,0 @@
-_target_: backends.ipex.IPEXBackend
-name: ipextorchscript
-version: ${ipex_version:}
-use_torchscript: true
-num_threads: null
-num_interops_threads: null
