@@ -74,7 +74,7 @@ SUMMARY_SUMMING_COLUMNS = {
     "batch_size",
 }
 
-FINAL_COLUMNS_ORDERING = ["backend.name", "batch_size", "sequence_length", "openmp.backend", "malloc", "use_huge_page"]
+FINAL_COLUMNS_ORDERING = ["backend.name", "batch_size", "sequence_length", "openmp.backend", "malloc", "use_huge_page", "num_instances"]
 RICH_DISPLAYED_COLUMNS = {
     "backend.name": "Backend",
     "malloc": "Malloc",
@@ -138,6 +138,7 @@ def aggregate_multi_instances_results(results_df: pd.DataFrame, grouping_columns
     transforms = {
         "latency_mean": ["min", "max", "mean"],
         "throughput": ["sum"],
+        "instance_id": ["sum"],
         "is_valid": ["all"]
     }
 
@@ -245,7 +246,7 @@ if __name__ == '__main__':
             with ExcelWriter(args.output_folder.joinpath(args.consolidated_filename)) as excel_writer:
                 consolidated_df.to_excel(excel_writer, sheet_name="individuals")
                 if args.is_multi_instances and args.multi_instances_scaling is not None:
-                    agg_df.to_excel(excel_writer, sheet_name="aggregated_multi_instances")
+                    agg_df.to_excel(excel_writer, sheet_name="aggregated_multi_instances", merge_cells=False)
 
         show_results_in_console(consolidated_df, sorting_columns)
     except ValueError as ve:
