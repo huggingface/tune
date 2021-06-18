@@ -9,3 +9,6 @@ rich
 transformers
 multiprocess
 sympy
+plotly
+joblib
+optuna
