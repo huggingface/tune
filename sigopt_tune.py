@@ -4,7 +4,7 @@ import sys
 from enum import IntEnum
 from typing import Any, Dict, NamedTuple
 from argparse import ArgumentParser
-from src.utils.cpu import CPUinfo
+from utils.cpu import CPUinfo
 from sigopt import Connection
 from consolidate import gather_results, aggregate_multi_instances_results, SCALING_CHOICES
 from random import getrandbits
@@ -188,6 +188,8 @@ def sigopt_tune(cfg):
     # dump the best result into file
     best_assignment = list(conn.experiments(experiment.id).best_assignments().fetch().iterate_pages())[0]
     report = OrderedDict(best_assignment.assignments)
+    if "nb_cores" not in report.keys():
+        report["nb_cores"] = CPUinfo().physical_core_nums
     report['metrics_name'] = best_assignment.values[0].name
     report['metrics_value'] = best_assignment.values[0].value
     report['batch_size'] = cfg.batch_size

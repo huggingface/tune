@@ -32,7 +32,7 @@ from argparse import RawTextHelpFormatter
 import logging
 import psutil
 
-from src.utils import CPUinfo
+from utils import CPUinfo
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 LOGGER = logging.getLogger(__name__)
