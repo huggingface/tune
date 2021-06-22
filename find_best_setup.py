@@ -68,8 +68,7 @@ def _compute_instance(batch_size, optimize_throughput, cpu_info):
             and cpu_info.physical_core_nums / instances[-1] > 1
         ):
             instances.append(instances[-1] * 2)
-
-    return instances[-1]
+    return instances
 
 
 def _optimize_latency_and_throughput(
@@ -94,6 +93,15 @@ def _optimize_latency_and_throughput(
     # It is necessary to check for presence of key in launcher_parameters before actually setting
     # the default value because suggest_categorical does not support dynamic value space (which
     # could happen when setting a default value and overwriting it with the specified one)
+
+    if "instances" not in launcher_parameters:
+        parameters["instances"] = _compute_instance(
+            main_parameters["batch_size"], optimize_throughput, cpu_info
+        )
+        if isinstance(parameters["instances"], list):
+            parameters["instances"] = trial.suggest_categorical(
+                "instances", parameters["instances"]
+            )
 
     if "openmp" not in launcher_parameters:
         parameters["openmp"] = trial.suggest_categorical("openmp", ["openmp", "iomp"])
@@ -191,8 +199,10 @@ def launch_and_wait(
             cmd.append("--disable_numactl")
 
         # Multi instances
-        elif name == "instances" and value > 1:
-            cmd += ["--multi_instance", f"--ninstances={value}"]
+        elif name == "instances":
+            if value > 1:
+                cmd += ["--multi_instance"]
+            cmd += [f"--ninstances={value}"]
 
         # OpenMP
         elif name == "openmp" and value == "iomp":
@@ -340,7 +350,7 @@ def hpo(
         )
 
     else:
-        importances = get_param_importances(study, target=mode2target[mode])
+        importances = get_param_importances(study)
         # print(
         #     "Best {}: {} (params: {})\n".format(
         #         mode.value.lower(), study.best_value, study.best_params
@@ -418,31 +428,3 @@ if __name__ == "__main__":
         launcher_parameters={"numactl": "off" if args.disable_numactl else "on"},
         main_parameters=main_parameters,
     )
-
-    # # Create some dynamic args
-    # args.study = create_study(
-    #     sampler=TPESampler(),
-    #     direction="minimize" if args.mode == TuningMode.LATENCY else "maximize"
-    # )
-    # args.study.optimize(
-    #     optimize_latency if args.mode == TuningMode.LATENCY else optimize_throughput,
-    #     n_trials=args.n_trials,
-    #     show_progress_bar=True
-    # )
-
-    # importances = get_param_importances(args.study)
-    # print("Best {}: {} (params: {})\n".format(args.mode.value.lower(), args.study.best_value, args.study.best_params))
-    # print("Parameter importance:")
-    # for param, importance in importances.items():
-    #     print(f"\t- {param} -> {importance}")
-
-    # study_result = {}
-    # for param in args.study.best_params:
-    #     importance = importances.get(param, 0)
-    #     param_value = args.study.best_params[param]
-    #     study_result[param] = {"importance": importance, "value": param_value}
-
-    # filename = f"{args.exp_name}_optuna_results.csv" if args.exp_name else "optuna_results.csv"
-    # path = os.path.join("outputs", filename)
-    # df = pd.DataFrame.from_dict(study_result)
-    # df.to_csv(path)
