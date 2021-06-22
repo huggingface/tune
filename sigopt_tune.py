@@ -1,3 +1,20 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+#  Copyright 2021 Intel Corporation.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
 import os
 import subprocess
 import sys
@@ -87,7 +104,7 @@ def launch_and_wait(parameters: Dict[str, Any]):
     output = process.stdout.read().decode("utf-8")
 
     scaling_choices = ["batch-size-scaling", "core-count-scaling"]
-    latency, throughput = parse_results(args.experiment_id, scaling_choices[args.mode])
+    latency, throughput = parse_results(args.experiment_id, scaling_choices[args.mode >= TuningMode.THROUGHPUT])
 
     # return ExperimentResult(latency, throughput)
     return [{'name': 'latency', 'value': latency}, {'name': 'throughput', 'value': throughput}]
@@ -190,6 +207,7 @@ def sigopt_tune(cfg):
     report = OrderedDict(best_assignment.assignments)
     if "nb_cores" not in report.keys():
         report["nb_cores"] = CPUinfo().physical_core_nums
+    report = OrderedDict(sorted(report.items()))
     report['metrics_name'] = best_assignment.values[0].name
     report['metrics_value'] = best_assignment.values[0].value
     report['batch_size'] = cfg.batch_size
