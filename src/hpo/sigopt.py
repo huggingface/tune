@@ -15,35 +15,39 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import os
-import subprocess
-import sys
+# import subprocess
+# import sys
 import copy
-from enum import IntEnum
-from typing import Any, Dict, NamedTuple
-from argparse import ArgumentParser
-from utils.cpu import CPUinfo
-from sigopt import Connection
-from consolidate import gather_results, aggregate_multi_instances_results, SCALING_CHOICES
-from random import getrandbits
-from binascii import hexlify
-from glob import glob
-from pathlib import Path
-from functools import reduce
+# from glob import glob
+# from pathlib import Path
+# from functools import reduce
 import json
+import os
+from binascii import hexlify
 from collections import OrderedDict
+# from consolidate import gather_results, aggregate_multi_instances_results, SCALING_CHOICES
+from random import getrandbits
 
-from .utils import TuningMode, launch_and_wait, check_tune_function_kwargs
+from sigopt import Connection
+
+# from enum import IntEnum
+# from typing import Any, Dict, NamedTuple
+# from argparse import ArgumentParser
+from utils.cpu import CPUinfo
+
+from .utils import (TuningMode, check_tune_function_kwargs,
+                    generate_nb_cores_candidates,
+                    generate_nb_instances_candidates, launch_and_wait)
 
 
 def convert_fmt(file):
-    target = os.path.splitext(file)[0] + '.csv'
-    with open(file) as f, open(target, 'w') as new_f:
+    target = os.path.splitext(file)[0] + ".csv"
+    with open(file) as f, open(target, "w") as new_f:
         for i, line in enumerate(f.readlines()):
             line = json.loads(line.rstrip())
             if i == 0:
-                new_f.write(','.join(line.keys()) + '\n')
-            new_f.write(','.join([str(v) for v in line.values()]) + '\n')
+                new_f.write(",".join(line.keys()) + "\n")
+            new_f.write(",".join([str(v) for v in line.values()]) + "\n")
 
 
 # def launch_and_wait(parameters: Dict[str, Any]):
@@ -139,17 +143,13 @@ def convert_fmt(file):
 def create_experiment(conn, experiment_info):
     cpu_info = CPUinfo()
     metrics = {
-        TuningMode.LATENCY: [{'name': 'latency', 'objective': 'minimize'}],
-        TuningMode.THROUGHPUT: [{'name': 'throughput', 'objective': 'maximize'}],
+        TuningMode.LATENCY: [{"name": "latency", "objective": "minimize"}],
+        TuningMode.THROUGHPUT: [{"name": "throughput", "objective": "maximize"}],
         TuningMode.BOTH: [
-            {'name': 'latency', 'objective': 'minimize'},
-            {'name': 'throughput', 'objective': 'maximize'}
+            {"name": "latency", "objective": "minimize"},
+            {"name": "throughput", "objective": "maximize"},
         ],
     }
-
-    def factors(n, bs, mode):
-        f = sorted(list(reduce(list.__add__, ([i, n // i] for i in range(1, int(n ** 0.5) + 1) if n % i == 0))))
-        return [str(i) for i in f if bs * i >= n and bs % (n / i) == 0] if mode == 0 else [str(i) for i in f]
 
     name = experiment_info["name"]
     mode = experiment_info["mode"]
@@ -165,27 +165,51 @@ def create_experiment(conn, experiment_info):
         raise ValueError("a sigopt project name needs to be specified")
 
     experiment_meta = {
-        'name': f'{name}-mode-{mode}-bs-{batch_size}-seq-{sequence_length}',
-        'project': project,
-        'parameters': [
-            {'categorical_values': ['openmp', 'iomp'], 'name': 'openmp', 'type': 'categorical'},
-            {'categorical_values': ['default', 'tcmalloc', 'jemalloc'], 'name': 'allocator', 'type': 'categorical'},
-            {'categorical_values': ['on', 'off'], 'name': 'huge_pages', 'type': 'categorical'},
-            {'categorical_values': ['0', '1'], 'name': 'kmp_blocktime', 'type': 'categorical'},
+        "name": f"{name}-mode-{mode.value}-bs-{batch_size}-seq-{sequence_length}",
+        "project": project,
+        "parameters": [
+            {
+                "categorical_values": ["openmp", "iomp"],
+                "name": "openmp",
+                "type": "categorical",
+            },
+            {
+                "categorical_values": ["default", "tcmalloc", "jemalloc"],
+                "name": "allocator",
+                "type": "categorical",
+            },
+            {
+                "categorical_values": ["on", "off"],
+                "name": "huge_pages",
+                "type": "categorical",
+            },
+            {"bounds": {"min": 0, "max": 1}, "name": "kmp_blocktime", "type": "int"},
         ],
-        'observation_budget': experiment_info["n_trials"],
-        'metrics': metrics[mode],
-        'parallel_bandwidth': 1,
+        "observation_budget": experiment_info["n_trials"],
+        "metrics": metrics[mode],
+        "parallel_bandwidth": 1,
     }
 
-    factor_list = factors(cpu_info.physical_core_nums, batch_size, mode)
-    if len(factor_list) > 1:
-        experiment_meta['parameters'].append(
-            {'categorical_values': factor_list, 'name': 'nb_cores', 'type': 'categorical'}
+    candidate_type, nb_cores = generate_nb_cores_candidates(batch_size, mode, cpu_info)
+    if candidate_type == "range":
+        experiment_meta["parameters"].append(
+            {
+                "bounds": {"min": nb_cores[0], "max": nb_cores[1]},
+                "name": "nb_cores",
+                "type": "int",
+            }
+        )
+    if candidate_type == "discrete" and len(nb_cores) > 1:
+        nb_cores = list(map(str, nb_cores))
+        experiment_meta["parameters"].append(
+            {"categorical_values": nb_cores, "name": "nb_cores", "type": "categorical"}
         )
 
     experiment = conn.experiments().create(**experiment_meta)
-    print("created experiment: https://app.sigopt.com/experiment/" + experiment.id, flush=True)
+    print(
+        "created experiment: https://app.sigopt.com/experiment/" + experiment.id,
+        flush=True,
+    )
     return experiment
 
 
@@ -198,13 +222,17 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
 
     if kwargs.get("convert_csv", False):
         if "logfile" not in kwargs:
-            raise ValueError(f"a log file needs to be specified when convert_csv is True")
+            raise ValueError(
+                f"a log file needs to be specified when convert_csv is True"
+            )
         convert_fmt(kwargs["logfile"])
         return
 
     conn = Connection()
     if "proxy" in kwargs:
-        conn.set_proxies({'http': kwargs["proxy"]})
+        conn.set_proxies({"http": kwargs["proxy"]})
+
+    mode = kwargs["mode"]
 
     # TODO: is it better to have everything explicitly set or just to pass kwargs as
     # experiment_info?
@@ -221,32 +249,59 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
         experiment_info["project"] = project_name
 
     experiment = create_experiment(conn, experiment_info)
+    experiment_id = hexlify(getrandbits(32).to_bytes(4, "big")).decode("ascii")
 
     while experiment.progress.observation_count < experiment.observation_budget:
         suggestion = conn.experiments(experiment.id).suggestions().create()
         assignments_dict = dict(suggestion.assignments)
         if "nb_cores" not in assignments_dict.keys():
             assignments_dict["nb_cores"] = cpu_info.physical_core_nums
-        assignments_dict["ninstances"] = cpu_info.physical_core_nums // int(assignments_dict["nb_cores"])
 
-        exp_result = launch_and_wait(assignments_dict)
-        values = [
-            {"name": "latency", "value": exp_result.latency},
-            {"name": "throughput", "value": exp_result.throughput}
-        ]
-        print('suggestion: %s, values: %s' % (suggestion.assignments, values), flush=True)
-        if values[0]['value'] is None and values[1]['value'] is None:
+        # Using dummy value for batch size (1) as it will not be used since the number of cores is
+        # provided.
+        assignments_dict["ninstances"] = generate_nb_instances_candidates(
+            1, mode, cpu_info, nb_cores=int(assignments_dict["nb_cores"])
+        )
+
+        exp_result = launch_and_wait(
+            launcher_parameters=assignments_dict,
+            main_parameters=main_parameters,
+            experiment_id=experiment_id,
+        )
+        values = {
+            TuningMode.LATENCY: {"name": "latency", "value": exp_result.latency},
+            TuningMode.THROUGHPUT: {
+                "name": "throughput",
+                "value": exp_result.throughput,
+            },
+            TuningMode.BOTH: [
+                {"name": "latency", "value": exp_result.latency},
+                {"name": "throughput", "value": exp_result.throughput},
+            ],
+        }
+        print(
+            "suggestion: %s, values: %s" % (suggestion.assignments, values), flush=True
+        )
+        if (
+            values[TuningMode.LATENCY]["value"] is None
+            and values[TuningMode.THROUGHPUT]["value"] is None
+        ):
             conn.experiments(experiment.id).suggestions(suggestion.id).delete()
-            print('incomplete metrics for suggestion: %s' % suggestion.assignments, flush=True)
+            print(
+                "incomplete metrics for suggestion: %s" % suggestion.assignments,
+                flush=True,
+            )
         else:
             conn.experiments(experiment.id).observations().create(
                 suggestion=suggestion.id,
-                values=[values[cfg.mode]] if cfg.mode != TuningMode.BOTH else values,
+                values=values[mode],
             )
         experiment = conn.experiments(experiment.id).fetch()
 
     # Dump the best result into file
-    best_assignment = list(conn.experiments(experiment.id).best_assignments().fetch().iterate_pages())[0]
+    best_assignment = list(
+        conn.experiments(experiment.id).best_assignments().fetch().iterate_pages()
+    )[0]
     report = OrderedDict(best_assignment.assignments)
 
     if "nb_cores" not in report.keys():
@@ -254,14 +309,14 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
 
     report = OrderedDict(sorted(report.items()))
 
-    report['metrics_name'] = best_assignment.values[0].name
-    report['metrics_value'] = best_assignment.values[0].value
-    report['batch_size'] = main_parameters["batch_size"]
-    report['sequence_length'] = main_parameters["sequence_length"]
-    report['mode'] = kwargs["mode"]
-    report['framework'] = main_parameters["backend"]
-    report['experiment_id'] = kwargs["experiment_id"]
+    report["metrics_name"] = best_assignment.values[0].name
+    report["metrics_value"] = best_assignment.values[0].value
+    report["batch_size"] = main_parameters["batch_size"]
+    report["sequence_length"] = main_parameters["sequence_length"]
+    report["mode"] = kwargs["mode"].value
+    report["framework"] = main_parameters["backend"]
+    report["experiment_id"] = experiment_id
 
-    with open(kwargs["logfile"], 'a') as f:
+    with open(kwargs["logfile"], "a") as f:
         json.dump(report, f)
-        f.write('\n')
+        f.write("\n")

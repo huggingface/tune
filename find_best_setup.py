@@ -1,9 +1,9 @@
 import sys
 from argparse import ArgumentParser
 
-from hpo.utils import TuningMode
 from hpo.optuna import optuna_tune
 from hpo.sigopt import sigopt_tune
+from hpo.utils import TuningMode
 
 
 def get_args():
@@ -73,8 +73,15 @@ def get_args():
     )
     parser.add_argument("--proxy", type=str, default=None, help="Proxies for sigopt")
     parser.add_argument("--logfile", type=str, default="tune.log", help="Log file")
-    parser.add_argument("--convert_csv", action="store_true", help="Convert json log file to csv")
-    parser.add_argument("--tuner", type=str, choices=["optuna", "sigopt"], help="The hyperparameter tuner to use")
+    parser.add_argument(
+        "--convert_csv", action="store_true", help="Convert json log file to csv"
+    )
+    parser.add_argument(
+        "--tuner",
+        type=str,
+        choices=["optuna", "sigopt"],
+        help="The hyperparameter tuner to use",
+    )
 
     return parser.parse_args()
 
@@ -101,6 +108,7 @@ def args_to_parameters(args):
 
     return main_parameters, launcher_parameters, other_parameters
 
+
 if __name__ == "__main__":
     args = get_args()
 
@@ -120,6 +128,4 @@ if __name__ == "__main__":
             main_parameters=main_parameters,
             launcher_parameters=launcher_parameters,
             **other_parameters,
-
-
         )

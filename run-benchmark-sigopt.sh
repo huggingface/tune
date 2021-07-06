@@ -54,7 +54,7 @@ fi
 # step 2: launch tuning jobs
 for bs in $BS_LIST; do
   for seq in $SEQ_LEN; do
-    cmd="PYTHONPATH=src python sigopt_tune.py --framework $framework --mode $mode --proxy $proxy --batch_size $bs
+    cmd="PYTHONPATH=src python find_best_setup.py --framework $framework --mode $mode --proxy $proxy --batch_size $bs --tuner sigopt
          --sequence_length $seq --n_trials $trials_per_cfg"
     echo $cmd
     if [ $execute_cmd -eq 1 ]; then eval $cmd; fi

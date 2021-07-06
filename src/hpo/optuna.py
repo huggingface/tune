@@ -1,17 +1,20 @@
 import copy
-import os
 import functools
+import os
+
 import joblib
-
-import pandas as pd
-
 import optuna
-from optuna import create_study, Trial
+import pandas as pd
+from optuna import Trial, create_study
 from optuna.importance import get_param_importances
-from optuna.samplers import TPESampler, NSGAIISampler
+from optuna.samplers import NSGAIISampler, TPESampler
 
-from .utils import TuningMode, launch_and_wait, check_tune_function_kwargs
 from utils import CPUinfo
+
+from .utils import (TuningMode, check_tune_function_kwargs,
+                    generate_nb_cores_candidates,
+                    generate_nb_instances_candidates, launch_and_wait)
+
 
 def prepare_parameter_for_optuna(trial, key, value):
     if isinstance(value, list):
@@ -41,23 +44,11 @@ def specialize_objective(optimize_fn, launcher_parameters=None, main_parameters=
     return wrapper
 
 
-def _compute_instance(batch_size, optimize_throughput, cpu_info):
-    instances = 1
-    if optimize_throughput:
-        instances = [1]
-        while (
-            batch_size / instances[-1] > 1
-            and cpu_info.physical_core_nums / instances[-1] > 1
-        ):
-            instances.append(instances[-1] * 2)
-    return instances
-
-
 def _optimize_latency_and_throughput(
+    mode,
     trial: Trial,
     launcher_parameters=None,
     main_parameters=None,
-    optimize_throughput=True,
 ):
     if launcher_parameters is None:
         launcher_parameters = {}
@@ -77,13 +68,15 @@ def _optimize_latency_and_throughput(
     # could happen when setting a default value and overwriting it with the specified one)
 
     if "instances" not in launcher_parameters:
-        parameters["instances"] = _compute_instance(
-            main_parameters["batch_size"], optimize_throughput, cpu_info
+        parameters["instances"] = generate_nb_instances_candidates(
+            main_parameters["batch_size"], mode, cpu_info
         )
-        if isinstance(parameters["instances"], list):
+        if len(parameters["instances"]) > 1:
             parameters["instances"] = trial.suggest_categorical(
                 "instances", parameters["instances"]
             )
+        else:
+            parameters["instances"] = parameters["instances"][0]
 
     if "openmp" not in launcher_parameters:
         parameters["openmp"] = trial.suggest_categorical("openmp", ["openmp", "iomp"])
@@ -103,11 +96,17 @@ def _optimize_latency_and_throughput(
     if parameters["instances"] > cpu_info.physical_core_nums:
         parameters["instances"] = cpu_info.physical_core_nums
 
-    parameters["nb_cores"] = trial.suggest_int(
-        "nb_cores", low=1, high=cpu_info.physical_core_nums // parameters["instances"]
+    parameters["nb_cores"] = trial.suggest_categorical(
+        "nb_cores",
+        # Using dummy value for batch size (1) as it will not be used since the number of instances
+        # is provided.
+        generate_nb_cores_candidates(
+            1, mode, cpu_info, nb_instances=parameters["instances"]
+        ),
     )
 
     batch_size = main_parameters["batch_size"]
+    # TODO: well define the behaviour for batch size (can we provide multiple batch sizes?)
     if isinstance(batch_size, list) and len(batch_size) > 1:
         filter_fn = lambda size: size % parameters["instances"] == 0
         batch_size = list(filter(filter_fn, batch_size))
@@ -123,10 +122,10 @@ def optimize_latency_and_throughput(
     trial: Trial, launcher_parameters=None, main_parameters=None
 ):
     experiment_result = _optimize_latency_and_throughput(
+        TuningMode.BOTH,
         trial,
         launcher_parameters=launcher_parameters,
         main_parameters=main_parameters,
-        optimize_throughput=True,
     )
 
     return experiment_result.latency, experiment_result.throughput
@@ -136,10 +135,10 @@ def optimize_latency(
     trial: Trial, launcher_parameters=None, main_parameters=None
 ) -> float:
     return _optimize_latency_and_throughput(
+        TuningMode.LATENCY,
         trial,
         launcher_parameters=launcher_parameters,
         main_parameters=main_parameters,
-        optimize_throughput=False,
     ).latency
 
 
@@ -147,16 +146,20 @@ def optimize_throughput(
     trial: Trial, launcher_parameters=None, main_parameters=None
 ) -> float:
     return _optimize_latency_and_throughput(
+        TuningMode.THROUGHPUT,
         trial,
         launcher_parameters=launcher_parameters,
         main_parameters=main_parameters,
-        optimize_throughput=True,
     ).throughput
 
 
 def optuna_tune(main_parameters=None, launcher_parameters=None, **kwargs):
     check_tune_function_kwargs(kwargs)
     kwargs = copy.deepcopy(kwargs)
+
+    mode = kwargs["mode"]
+    exp_name = kwargs["exp_name"]
+    n_trials = kwargs["n_trials"]
 
     mode2directions = {
         TuningMode.LATENCY: {"direction": "minimize"},
