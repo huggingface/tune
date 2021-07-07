@@ -258,7 +258,7 @@ class TensorflowBackend(Backend[TensorflowConfig]):
             return benchmark, np.stack(outputs)
 
     def _run_xla(self, config: BenchmarkConfig, is_reference: bool) -> Tuple[Benchmark, np.ndarray]:
-        @tf.function(experimental_compile=config.backend.experimental_compiler)
+        @tf.function(jit_compile=True)
         def xla_model(inputs):
             # SavedModel concrete function needs unwrapped arguments ...
             if config.backend.use_saved_model_format:
