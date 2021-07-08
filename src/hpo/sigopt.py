@@ -15,29 +15,23 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-# import subprocess
-# import sys
 import copy
-# from glob import glob
-# from pathlib import Path
-# from functools import reduce
 import json
 import os
 from binascii import hexlify
 from collections import OrderedDict
-# from consolidate import gather_results, aggregate_multi_instances_results, SCALING_CHOICES
 from random import getrandbits
 
 from sigopt import Connection
 
-# from enum import IntEnum
-# from typing import Any, Dict, NamedTuple
-# from argparse import ArgumentParser
 from utils.cpu import CPUinfo
-
-from .utils import (TuningMode, check_tune_function_kwargs,
-                    generate_nb_cores_candidates,
-                    generate_nb_instances_candidates, launch_and_wait)
+from .utils import (
+    TuningMode,
+    generate_nb_cores_candidates,
+    generate_nb_instances_candidates,
+    launch_and_wait,
+    tune_function,
+)
 
 
 def convert_fmt(file):
@@ -48,96 +42,6 @@ def convert_fmt(file):
             if i == 0:
                 new_f.write(",".join(line.keys()) + "\n")
             new_f.write(",".join([str(v) for v in line.values()]) + "\n")
-
-
-# def launch_and_wait(parameters: Dict[str, Any]):
-#     args.experiment_id = hexlify(getrandbits(32).to_bytes(4, 'big')).decode('ascii')
-#     cmd = [sys.executable, "launcher.py", f"--experiment_id={args.experiment_id}"]
-#
-#     for name, value in parameters.items():
-#         # Number of cores
-#         if name == "nb_cores":
-#             cmd.append(f"--ncore_per_instance={value}")
-#
-#         # Multi instances
-#         if name == "ninstances":
-#             cmd += ["--multi_instance", f"--ninstances={value}"] if value > 1 else ["--ninstances=1"]
-#
-#         # OpenMP
-#         elif name == "openmp" and value == "iomp":
-#             cmd.append("--enable_iomp")
-#
-#         # Memory allocator
-#         elif name == "allocator":
-#             if value == "default":
-#                 cmd.append("--use_default_allocator")
-#             else:
-#                 cmd.append(f"--enable_{value}")
-#
-#         # Transparent huge pages
-#         elif name == "huge_pages" and value.lower() == "on":
-#             cmd.append("--enable_thp")
-#
-#         # kmp_blocktime
-#         elif name == "kmp_blocktime":
-#             cmd.append(f"--kmp_blocktime={value}")
-#
-#     # numactl
-#     if args.disable_numactl:
-#         cmd.append("--disable_numactl")
-#
-#     bs = args.batch_size if args.mode != TuningMode.LATENCY else args.batch_size // parameters["ninstances"]
-#
-#     # Main script parameter
-#     cmd += [
-#         "--",
-#         "src/main.py",
-#         "benchmark_duration=60",
-#         "warmup_runs=5",
-#         f"batch_size={bs}",
-#         f"sequence_length={args.sequence_length}",
-#         f"backend={args.framework}"
-#     ]
-#
-#     print("----- launcher cmd: [%s]" % " ".join(cmd), flush=True)
-#     process = subprocess.Popen(cmd, cwd=os.curdir, stdout=subprocess.PIPE)
-#     process.wait()
-#     output = process.stdout.read().decode("utf-8")
-#
-#     scaling_choices = ["batch-size-scaling", "core-count-scaling"]
-#     latency, throughput = parse_results(args.experiment_id, scaling_choices[args.mode >= TuningMode.THROUGHPUT])
-#
-#     # return ExperimentResult(latency, throughput)
-#     return [{'name': 'latency', 'value': latency}, {'name': 'throughput', 'value': throughput}]
-
-
-# def parse_results(experiment_id, multi_instances_scaling=None):
-#     results_folder = Path("outputs/default/" + experiment_id)
-#     try:
-#         # Detect folder run type from folder structure
-#         instances_folder = glob(f"{results_folder.as_posix()}/*")
-#         is_multi_instances = len(instances_folder) > 1
-#
-#         # If we detect multi instance and no scaling mode is provided, ask for a value
-#         if is_multi_instances and multi_instances_scaling is None:
-#             print("warning: multi_instances_scaling is not specified for multi-instance run.", flush=True)
-#
-#         # Gather the results to manipulate
-#         consolidated_df, sorting_columns = gather_results(results_folder, is_multi_instances)
-#
-#         if is_multi_instances and multi_instances_scaling is not None:
-#             agg_df = aggregate_multi_instances_results(consolidated_df, sorting_columns, multi_instances_scaling)
-#             latency = float(agg_df['latency_mean']['mean'].iloc[0] / 1e6)
-#             throughput = float(agg_df['throughput']['sum'].iloc[0])
-#         else:
-#             latency = float(consolidated_df['latency_mean'].iloc[0] / 1e6)
-#             throughput = float(consolidated_df['throughput'].iloc[0])
-#
-#     except ValueError as ve:
-#         print(ve, flush=True)
-#         latency, throughput = None, None
-#
-#     return latency, throughput
 
 
 def create_experiment(conn, experiment_info):
@@ -190,8 +94,8 @@ def create_experiment(conn, experiment_info):
         "parallel_bandwidth": 1,
     }
 
-    candidate_type, nb_cores = generate_nb_cores_candidates(batch_size, mode, cpu_info)
-    if candidate_type == "range":
+    candidates_type, nb_cores = generate_nb_cores_candidates(batch_size, mode, cpu_info)
+    if candidates_type == "range":
         experiment_meta["parameters"].append(
             {
                 "bounds": {"min": nb_cores[0], "max": nb_cores[1]},
@@ -199,8 +103,9 @@ def create_experiment(conn, experiment_info):
                 "type": "int",
             }
         )
-    if candidate_type == "discrete" and len(nb_cores) > 1:
+    if candidates_type == "discrete" and len(nb_cores) > 1:
         nb_cores = list(map(str, nb_cores))
+        # nb_cores = nb_cores[-3:]
         experiment_meta["parameters"].append(
             {"categorical_values": nb_cores, "name": "nb_cores", "type": "categorical"}
         )
@@ -213,17 +118,14 @@ def create_experiment(conn, experiment_info):
     return experiment
 
 
+@tune_function
 def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
-    check_tune_function_kwargs(kwargs)
-    # TODO: check sigopt specific kwargs that need to be specified.
-    kwargs = copy.deepcopy(kwargs)
-
     cpu_info = CPUinfo()
 
     if kwargs.get("convert_csv", False):
         if "logfile" not in kwargs:
             raise ValueError(
-                f"a log file needs to be specified when convert_csv is True"
+                "a log file needs to be specified when convert_csv is True"
             )
         convert_fmt(kwargs["logfile"])
         return
@@ -269,22 +171,29 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
             experiment_id=experiment_id,
         )
         values = {
-            TuningMode.LATENCY: {"name": "latency", "value": exp_result.latency},
-            TuningMode.THROUGHPUT: {
-                "name": "throughput",
-                "value": exp_result.throughput,
-            },
+            TuningMode.LATENCY: [{"name": "latency", "value": exp_result.latency}],
+            TuningMode.THROUGHPUT: [
+                {
+                    "name": "throughput",
+                    "value": exp_result.throughput,
+                }
+            ],
             TuningMode.BOTH: [
                 {"name": "latency", "value": exp_result.latency},
                 {"name": "throughput", "value": exp_result.throughput},
             ],
         }
-        print(
-            "suggestion: %s, values: %s" % (suggestion.assignments, values), flush=True
-        )
+
+        print("Sigopt suggestion:")
+        for name, assignment in suggestion.assignments.items():
+            print(f"\t- {name} = {assignment}")
+        print("Experiment result:")
+        for value_dict in values[mode]:
+            print(f"\t{value_dict['name']} = {value_dict['value']}")
+
         if (
-            values[TuningMode.LATENCY]["value"] is None
-            and values[TuningMode.THROUGHPUT]["value"] is None
+            values[TuningMode.LATENCY][0]["value"] is None
+            and values[TuningMode.THROUGHPUT][0]["value"] is None
         ):
             conn.experiments(experiment.id).suggestions(suggestion.id).delete()
             print(
@@ -317,6 +226,12 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
     report["framework"] = main_parameters["backend"]
     report["experiment_id"] = experiment_id
 
-    with open(kwargs["logfile"], "a") as f:
+    print("Sigopt experiment report")
+    for key, value in report.items():
+        print(f"\t- {key} -> {value}")
+
+    filename = kwargs["logfile"]
+    with open(filename, "a") as f:
+        print(f"Saved the Sigopt experiment report at {filename}")
         json.dump(report, f)
         f.write("\n")

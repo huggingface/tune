@@ -11,9 +11,14 @@ from optuna.samplers import NSGAIISampler, TPESampler
 
 from utils import CPUinfo
 
-from .utils import (TuningMode, check_tune_function_kwargs,
-                    generate_nb_cores_candidates,
-                    generate_nb_instances_candidates, launch_and_wait)
+from .utils import (
+    ExperimentResult,
+    TuningMode,
+    generate_nb_cores_candidates,
+    generate_nb_instances_candidates,
+    launch_and_wait,
+    tune_function,
+)
 
 
 def prepare_parameter_for_optuna(trial, key, value):
@@ -25,9 +30,17 @@ def prepare_parameter_for_optuna(trial, key, value):
 
 
 def specialize_objective(optimize_fn, launcher_parameters=None, main_parameters=None):
+    """
+    Specializes an objective function (optimize_latency, optimize_throughput,
+    optimize_latency_and_throughput) by partially applying main_parameters and launcher_parameters
+    and returning the resulting objective function.
+    """
 
     if launcher_parameters is None:
         launcher_parameters = {}
+
+    launcher_parameters = copy.deepcopy(launcher_parameters)
+    main_parameters = copy.deepcopy(main_parameters)
 
     @functools.wraps(optimize_fn)
     def wrapper(trial: Trial):
@@ -46,10 +59,15 @@ def specialize_objective(optimize_fn, launcher_parameters=None, main_parameters=
 
 def _optimize_latency_and_throughput(
     mode,
-    trial: Trial,
+    trial,
     launcher_parameters=None,
     main_parameters=None,
-):
+) -> ExperimentResult:
+    """
+    Main function that suggests unspecfied mandatory launcher_parameters via Optuna according to a
+    TuningMode, runs an experiment using those parameters and returns the result as an
+    ExperimentResult.
+    """
     if launcher_parameters is None:
         launcher_parameters = {}
 
@@ -96,14 +114,22 @@ def _optimize_latency_and_throughput(
     if parameters["instances"] > cpu_info.physical_core_nums:
         parameters["instances"] = cpu_info.physical_core_nums
 
-    parameters["nb_cores"] = trial.suggest_categorical(
-        "nb_cores",
-        # Using dummy value for batch size (1) as it will not be used since the number of instances
-        # is provided.
-        generate_nb_cores_candidates(
-            1, mode, cpu_info, nb_instances=parameters["instances"]
-        ),
+    # Using dummy value for batch size (1) as it will not be used since the number of instances
+    # is provided.
+    candidates_type, nb_cores = generate_nb_cores_candidates(
+        1, mode, cpu_info, nb_instances=parameters["instances"]
     )
+    if candidates_type == "range":
+        parameters["nb_cores"] = trial.suggest_int("nb_cores", *nb_cores)
+    if candidates_type == "discrete":
+        if len(nb_cores) > 1:
+            parameters["nb_cores"] = trial.suggest_categorical("nb_cores", nb_cores)
+        elif nb_cores:
+            parameters["nb_cores"] = nb_cores[0]
+        else:
+            parameters["nb_cores"] = (
+                parameters["instances"] // cpu_info.physical_core_nums
+            )
 
     batch_size = main_parameters["batch_size"]
     # TODO: well define the behaviour for batch size (can we provide multiple batch sizes?)
@@ -153,45 +179,48 @@ def optimize_throughput(
     ).throughput
 
 
-def optuna_tune(main_parameters=None, launcher_parameters=None, **kwargs):
-    check_tune_function_kwargs(kwargs)
-    kwargs = copy.deepcopy(kwargs)
+directions = {
+    TuningMode.LATENCY: {"direction": "minimize"},
+    TuningMode.THROUGHPUT: {"direction": "maximize"},
+    TuningMode.BOTH: {"directions": ["minimize", "maximize"]},
+}
 
+
+samplers = {
+    TuningMode.LATENCY: TPESampler,
+    TuningMode.THROUGHPUT: TPESampler,
+    TuningMode.BOTH: NSGAIISampler,
+}
+
+
+objectives = {
+    TuningMode.LATENCY: optimize_latency,
+    TuningMode.THROUGHPUT: optimize_throughput,
+    TuningMode.BOTH: optimize_latency_and_throughput,
+}
+
+
+create_study_functions = {
+    TuningMode.LATENCY: create_study,
+    TuningMode.THROUGHPUT: create_study,
+    TuningMode.BOTH: optuna.multi_objective.create_study,
+}
+
+
+@tune_function
+def optuna_tune(launcher_parameters=None, main_parameters=None, **kwargs):
     mode = kwargs["mode"]
     exp_name = kwargs["exp_name"]
     n_trials = kwargs["n_trials"]
 
-    mode2directions = {
-        TuningMode.LATENCY: {"direction": "minimize"},
-        TuningMode.THROUGHPUT: {"direction": "maximize"},
-        TuningMode.BOTH: {"directions": ["minimize", "maximize"]},
-    }
+    study_fn = create_study_functions[mode]
+    sampler_cls = samplers[mode]
+    direction = directions[mode]
+    objective = objectives[mode]
 
-    mode2sampler = {
-        TuningMode.LATENCY: TPESampler,
-        TuningMode.THROUGHPUT: TPESampler,
-        TuningMode.BOTH: NSGAIISampler,
-    }
-
-    mode2create_study = {
-        TuningMode.LATENCY: create_study,
-        TuningMode.THROUGHPUT: create_study,
-        TuningMode.BOTH: optuna.multi_objective.create_study,
-    }
-
-    study = mode2create_study[mode](
-        sampler=mode2sampler[mode](),
-        **mode2directions[mode],
-    )
-
-    mode2objective = {
-        TuningMode.LATENCY: optimize_latency,
-        TuningMode.THROUGHPUT: optimize_throughput,
-        TuningMode.BOTH: optimize_latency_and_throughput,
-    }
-
+    study = study_fn(sampler=sampler_cls(), **direction)
     objective = specialize_objective(
-        mode2objective[mode],
+        objective,
         launcher_parameters=launcher_parameters,
         main_parameters=main_parameters,
     )
@@ -207,7 +236,7 @@ def optuna_tune(main_parameters=None, launcher_parameters=None, **kwargs):
     def multi_objective_target(trial, idx_to_target):
         return trial.values[idx_to_target]
 
-    if mode is TuningMode.LATENCY_AND_THROUGHPUT:
+    if mode is TuningMode.BOTH:
         param_importances_for_latency = get_param_importances(
             study, target=functools.partial(multi_objective_target, idx_to_target=0)
         )
@@ -219,7 +248,15 @@ def optuna_tune(main_parameters=None, launcher_parameters=None, **kwargs):
             "Throughput": param_importances_for_throughput,
         }
 
-        # TODO: print parameter importances.
+        print("To get the best parameters, check the pareto front")
+
+        print("Parameter importance for latency:")
+        for param, importance in importances["Latency"].items():
+            print(f"\t- {param} -> {importance}")
+
+        print("Parameter importance for throughput:")
+        for param, importance in importances["Throughput"].items():
+            print(f"\t- {param} -> {importance}")
 
         importances_path = os.path.join("outputs", f"{exp_name}_importances.csv")
         df = pd.DataFrame.from_dict(importances)
