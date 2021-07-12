@@ -12,11 +12,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import subprocess
 import itertools
+
 from argparse import ArgumentParser
-import find_best_setup
-from find_best_setup import TuningMode
+from hpo.optuna import optuna_tune
+from hpo.sigopt import sigopt_tune
+from hpo.utils import TuningMode
 
 # Predefined backend lists; Please change as needed
 
@@ -65,13 +66,12 @@ parser.add_argument(
     choices=[
         TuningMode.LATENCY,
         TuningMode.THROUGHPUT,
-        TuningMode.LATENCY_AND_THROUGHPUT,
+        TuningMode.BOTH,
     ],
-    default=TuningMode.LATENCY_AND_THROUGHPUT,
+    default=TuningMode.BOTH,
     help="The criteria to use for the benchmark",
 )
 args = parser.parse_args()
-print(args.backend_list)
 if args.backend_list == "pt":
     backends = pt_experiment_backends
 if args.backend_list == "tf":
@@ -421,7 +421,7 @@ core_count_scaling_experiments = [
 ]
 
 experiment_list = [
-    oob_experiments,
+    # oob_experiments,
     bs1_experiments,
     bs4_batch_size_scaling_experiments,
     bs8_batch_size_scaling_experiments,
@@ -429,9 +429,6 @@ experiment_list = [
     bs32_batch_size_scaling_experiments,
     core_count_scaling_experiments,
 ]
-
-
-# Run the experiments
 
 
 if __name__ == "__main__":
@@ -443,6 +440,9 @@ if __name__ == "__main__":
 
     for experiments in experiment_list:
         for experiment in experiments:
+            print("-" * 40)
+            print(f"Running experiment {experiment['name']}")
+            print("-" * 40)
 
             # Processing the parameter values to match with what the hpo function expects.
             launcher_parameters = dict(experiment["launcher_knobs"])
@@ -512,9 +512,26 @@ if __name__ == "__main__":
                 main_parameters["sequence_length"] = seqlen
                 main_parameters["backend"] = back
 
-                find_best_setup.hpo(
-                    exp_name,
-                    args.mode,
+                print("\nTuning with Optuna")
+                print("-" * 40)
+                print("\n")
+
+                optuna_tune(
                     launcher_parameters=launcher_parameters,
                     main_parameters=main_parameters,
+                    exp_name=exp_name,
+                    mode=args.mode,
+                    n_trials=50,
+                )
+
+                print("\nTuning with Sigopt")
+                print("-" * 40)
+                print("\n")
+
+                sigopt_tune(
+                    launcher_parameters=launcher_parameters,
+                    main_parameters=main_parameters,
+                    exp_name=exp_name,
+                    mode=args.mode,
+                    n_trials=50,
                 )

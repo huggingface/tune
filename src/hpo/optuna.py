@@ -21,42 +21,6 @@ from .utils import (
 )
 
 
-def prepare_parameter_for_optuna(trial, key, value):
-    if isinstance(value, list):
-        if len(value) == 1:
-            return value[0]
-        return trial.suggest_categorical(key, value)
-    return value
-
-
-def specialize_objective(optimize_fn, launcher_parameters=None, main_parameters=None):
-    """
-    Specializes an objective function (optimize_latency, optimize_throughput,
-    optimize_latency_and_throughput) by partially applying main_parameters and launcher_parameters
-    and returning the resulting objective function.
-    """
-
-    if launcher_parameters is None:
-        launcher_parameters = {}
-
-    launcher_parameters = copy.deepcopy(launcher_parameters)
-    main_parameters = copy.deepcopy(main_parameters)
-
-    @functools.wraps(optimize_fn)
-    def wrapper(trial: Trial):
-        prepared_launcher_parameters = {
-            k: prepare_parameter_for_optuna(trial, k, v)
-            for k, v in launcher_parameters.items()
-        }
-        return optimize_fn(
-            trial,
-            launcher_parameters=prepared_launcher_parameters,
-            main_parameters=main_parameters,
-        )
-
-    return wrapper
-
-
 def _optimize_latency_and_throughput(
     mode,
     trial,
@@ -66,25 +30,24 @@ def _optimize_latency_and_throughput(
     """
     Main function that suggests unspecfied mandatory launcher_parameters via Optuna according to a
     TuningMode, runs an experiment using those parameters and returns the result as an
-    ExperimentResult.
+    ExperimentResult. If a launcher parameter was specified as a list, it is assumed to be a set of
+    possible candidates from which Optuna should choose.
     """
     if launcher_parameters is None:
         launcher_parameters = {}
 
     if main_parameters is None:
-        # TODO: add safety check to make sure all the mandatory keys are provided.
         main_parameters = {}
 
     cpu_info = CPUinfo()
 
-    parameters = {
-        "instances": 1,
-    }
-
     # It is necessary to check for presence of key in launcher_parameters before actually setting
     # the default value because suggest_categorical does not support dynamic value space (which
     # could happen when setting a default value and overwriting it with the specified one)
-
+    parameters = {
+        "instances": 1,
+    }
+    suggested_instances = False
     if "instances" not in launcher_parameters:
         parameters["instances"] = generate_nb_instances_candidates(
             main_parameters["batch_size"], mode, cpu_info
@@ -93,6 +56,7 @@ def _optimize_latency_and_throughput(
             parameters["instances"] = trial.suggest_categorical(
                 "instances", parameters["instances"]
             )
+            suggested_instances = True
         else:
             parameters["instances"] = parameters["instances"][0]
 
@@ -109,6 +73,22 @@ def _optimize_latency_and_throughput(
             "huge_pages", ["on", "off"]
         )
 
+    suggested_parameters = parameters.keys() - (
+        {"instances"} if not suggested_instances else {}
+    )
+
+    def prepare_parameter_for_optuna(trial, key, value):
+        if isinstance(value, list):
+            if len(value) == 1:
+                return value[0]
+            suggested_parameters.add(key)
+            return trial.suggest_categorical(key, value)
+        return value
+
+    launcher_parameters = {
+        k: prepare_parameter_for_optuna(trial, k, v)
+        for k, v in launcher_parameters.items()
+    }
     parameters.update(launcher_parameters)
 
     if parameters["instances"] > cpu_info.physical_core_nums:
@@ -121,9 +101,11 @@ def _optimize_latency_and_throughput(
     )
     if candidates_type == "range":
         parameters["nb_cores"] = trial.suggest_int("nb_cores", *nb_cores)
+        suggested_parameters.add("nb_cores")
     if candidates_type == "discrete":
         if len(nb_cores) > 1:
             parameters["nb_cores"] = trial.suggest_categorical("nb_cores", nb_cores)
+            suggested_parameters.add("nb_cores")
         elif nb_cores:
             parameters["nb_cores"] = nb_cores[0]
         else:
@@ -138,10 +120,21 @@ def _optimize_latency_and_throughput(
         batch_size = list(filter(filter_fn, batch_size))
     main_parameters["batch_size"] = batch_size
 
-    print("launcher_parameters", parameters)
-    print("main_parameters", main_parameters)
+    # print("launcher_parameters", parameters)
+    # print("main_parameters", main_parameters)
 
-    return launch_and_wait(parameters, main_parameters)
+    exp_result = launch_and_wait(parameters, main_parameters)
+
+    print("-" * 40)
+    print("\nOptuna suggestion:")
+    for name in suggested_parameters:
+        print(f"\t- {name} = {parameters[name]}")
+    print(
+        f"Experiment result:\n\t- Latency: {exp_result.latency} ms\n\t- Throughput: {exp_result.throughput} it/s\n"
+    )
+    print("-" * 40)
+
+    return exp_result
 
 
 def optimize_latency_and_throughput(
@@ -219,7 +212,7 @@ def optuna_tune(launcher_parameters=None, main_parameters=None, **kwargs):
     objective = objectives[mode]
 
     study = study_fn(sampler=sampler_cls(), **direction)
-    objective = specialize_objective(
+    objective = functools.partial(
         objective,
         launcher_parameters=launcher_parameters,
         main_parameters=main_parameters,

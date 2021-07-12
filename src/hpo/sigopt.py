@@ -44,7 +44,15 @@ def convert_fmt(file):
             new_f.write(",".join([str(v) for v in line.values()]) + "\n")
 
 
-def create_experiment(conn, experiment_info):
+def create_experiment(
+    conn, experiment_info, specified_candidates=None, specified_parameters=None
+):
+    if specified_candidates is None:
+        specified_candidates = {}
+
+    if specified_parameters is None:
+        specified_parameters = {}
+
     cpu_info = CPUinfo()
     metrics = {
         TuningMode.LATENCY: [{"name": "latency", "objective": "minimize"}],
@@ -71,48 +79,80 @@ def create_experiment(conn, experiment_info):
     experiment_meta = {
         "name": f"{name}-mode-{mode.value}-bs-{batch_size}-seq-{sequence_length}",
         "project": project,
-        "parameters": [
-            {
+        "parameters": {
+            "openmp": {
                 "categorical_values": ["openmp", "iomp"],
                 "name": "openmp",
                 "type": "categorical",
             },
-            {
+            "allocator": {
                 "categorical_values": ["default", "tcmalloc", "jemalloc"],
                 "name": "allocator",
                 "type": "categorical",
             },
-            {
+            "huge_pages": {
                 "categorical_values": ["on", "off"],
                 "name": "huge_pages",
                 "type": "categorical",
             },
-            {"bounds": {"min": 0, "max": 1}, "name": "kmp_blocktime", "type": "int"},
-        ],
+            "kmp_blocktime": {
+                "bounds": {"min": 0, "max": 1},
+                "name": "kmp_blocktime",
+                "type": "int",
+            },
+        },
         "observation_budget": experiment_info["n_trials"],
         "metrics": metrics[mode],
         "parallel_bandwidth": 1,
     }
 
-    candidates_type, nb_cores = generate_nb_cores_candidates(batch_size, mode, cpu_info)
-    if candidates_type == "range":
-        experiment_meta["parameters"].append(
-            {
+    # If a launcher parameter was specified manually, there are two possibilities:
+    #   1. The specified value is a list, in which case it is considered to be a list of
+    #       candidates Sigopt should choose from
+    #   2. The specified value is not a list, in which case its value is ignored for now (it will
+    #       be taken into account in the sigopt_tune function), but the parameter is removed from
+    #       the ones Sigopt should tune on.
+    for param in experiment_meta["parameters"]:
+        if param in specified_parameters:
+            experiment_meta["parameters"].pop(param)
+
+    for param in specified_candidates:
+        candidates = list(map(str, specified_candidates[param]))
+        experiment_meta["parameters"][param] = {
+            "categorical_values": list(map(str, candidates)),
+            "name": param,
+            "type": "categorical",
+        }
+
+    # Because we cannot choose both the number of instances and the number of cores with Sigopt,
+    # we set the number of cores as a parameter to tune if the number of instances was not set to
+    # be tunable.
+    if "instances" not in experiment_meta["parameters"]:
+        nb_instances = specified_parameters.get("instances", -1)
+        candidates_type, nb_cores = generate_nb_cores_candidates(
+            batch_size, mode, cpu_info, nb_instances=nb_instances
+        )
+        if candidates_type == "range":
+            experiment_meta["parameters"]["nb_cores"] = {
                 "bounds": {"min": nb_cores[0], "max": nb_cores[1]},
                 "name": "nb_cores",
                 "type": "int",
             }
-        )
-    if candidates_type == "discrete" and len(nb_cores) > 1:
-        nb_cores = list(map(str, nb_cores))
-        # nb_cores = nb_cores[-3:]
-        experiment_meta["parameters"].append(
-            {"categorical_values": nb_cores, "name": "nb_cores", "type": "categorical"}
-        )
+
+        if candidates_type == "discrete" and len(nb_cores) > 1:
+            nb_cores = list(map(str, nb_cores))
+            experiment_meta["parameters"]["nb_cores"] = {
+                "categorical_values": nb_cores,
+                "name": "nb_cores",
+                "type": "categorical",
+            }
+
+    print(experiment_meta["parameters"])
+    experiment_meta["parameters"] = list(experiment_meta["parameters"].values())
 
     experiment = conn.experiments().create(**experiment_meta)
     print(
-        "created experiment: https://app.sigopt.com/experiment/" + experiment.id,
+        f"Created experiment: https://app.sigopt.com/experiment/{experiment.id}",
         flush=True,
     )
     return experiment
@@ -120,6 +160,23 @@ def create_experiment(conn, experiment_info):
 
 @tune_function
 def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
+    if launcher_parameters is None:
+        launcher_parameters = {}
+
+    if main_parameters is None:
+        main_parameters = {}
+
+    launcher_parameters = copy.deepcopy(launcher_parameters)
+    for k, v in launcher_parameters.items():
+        if isinstance(v, list) and len(v) == 1:
+            launcher_parameters[k] = v[0]
+    manually_specified_candidates = {
+        k: v for k, v in launcher_parameters.items() if isinstance(v, list)
+    }
+    manually_specified_parameters = {
+        k: v for k, v in launcher_parameters.items() if not isinstance(v, list)
+    }
+
     cpu_info = CPUinfo()
 
     if kwargs.get("convert_csv", False):
@@ -150,20 +207,39 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
     if project_name:
         experiment_info["project"] = project_name
 
-    experiment = create_experiment(conn, experiment_info)
+    experiment = create_experiment(
+        conn,
+        experiment_info,
+        specified_candidates=manually_specified_candidates,
+        specified_parameters=manually_specified_parameters,
+    )
     experiment_id = hexlify(getrandbits(32).to_bytes(4, "big")).decode("ascii")
 
     while experiment.progress.observation_count < experiment.observation_budget:
         suggestion = conn.experiments(experiment.id).suggestions().create()
         assignments_dict = dict(suggestion.assignments)
-        if "nb_cores" not in assignments_dict.keys():
-            assignments_dict["nb_cores"] = cpu_info.physical_core_nums
 
-        # Using dummy value for batch size (1) as it will not be used since the number of cores is
-        # provided.
-        assignments_dict["ninstances"] = generate_nb_instances_candidates(
-            1, mode, cpu_info, nb_cores=int(assignments_dict["nb_cores"])
-        )
+        # Setting values that were manually specified (as they will not be suggested by Sigopt)
+        assignments_dict.update(manually_specified_parameters)
+
+        # Setting the number of cores and instances if this was not set before.
+        if "nb_cores" not in assignments_dict:
+            assignments_dict["nb_cores"] = generate_nb_cores_candidates(
+                main_parameters["batch_size"],
+                mode,
+                cpu_info,
+                nb_instances=int(assignments_dict["nb_cores"]),
+            )
+
+        if "instances" not in assignments_dict:
+            default_nb_instances = generate_nb_instances_candidates(
+                main_parameters["batch_size"],
+                mode,
+                cpu_info,
+                nb_cores=int(assignments_dict["nb_cores"]),
+            )
+            nb_instances = launcher_parameters.get("instances", default_nb_instances)
+            assignments_dict["instances"] = nb_instances
 
         exp_result = launch_and_wait(
             launcher_parameters=assignments_dict,
@@ -184,13 +260,6 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
             ],
         }
 
-        print("Sigopt suggestion:")
-        for name, assignment in suggestion.assignments.items():
-            print(f"\t- {name} = {assignment}")
-        print("Experiment result:")
-        for value_dict in values[mode]:
-            print(f"\t{value_dict['name']} = {value_dict['value']}")
-
         if (
             values[TuningMode.LATENCY][0]["value"] is None
             and values[TuningMode.THROUGHPUT][0]["value"] is None
@@ -206,6 +275,15 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
                 values=values[mode],
             )
         experiment = conn.experiments(experiment.id).fetch()
+
+        print("-" * 40)
+        print("\nSigopt suggestion:")
+        for name, assignment in suggestion.assignments.items():
+            print(f"\t- {name} = {assignment}")
+        print(
+            f"Experiment result:\n\t- Latency: {exp_result.latency} ms\n\t- Throughput: {exp_result.throughput} it/s\n"
+        )
+        print("-" * 40)
 
     # Dump the best result into file
     best_assignment = list(
