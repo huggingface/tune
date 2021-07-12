@@ -130,7 +130,7 @@ def _optimize_latency_and_throughput(
     for name in suggested_parameters:
         print(f"\t- {name} = {parameters[name]}")
     print(
-        f"Experiment result:\n\t- Latency: {exp_result.latency} ms\n\t- Throughput: {exp_result.throughput} it/s\n"
+        f"Experiment result:\n\t- Latency = {exp_result.latency} ms\n\t- Throughput = {exp_result.throughput} it/s\n"
     )
     print("-" * 40)
 

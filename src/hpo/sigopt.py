@@ -281,7 +281,7 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
         for name, assignment in suggestion.assignments.items():
             print(f"\t- {name} = {assignment}")
         print(
-            f"Experiment result:\n\t- Latency: {exp_result.latency} ms\n\t- Throughput: {exp_result.throughput} it/s\n"
+            f"Experiment result:\n\t- Latency = {exp_result.latency} ms\n\t- Throughput = {exp_result.throughput} it/s\n"
         )
         print("-" * 40)
 
