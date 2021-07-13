@@ -77,6 +77,12 @@ parser.add_argument(
     default=50,
     help="The number of trials per experiment",
 )
+parser.add_argument(
+    "--project",
+    type=str,
+    default=None,
+    help="Sigopt project name, will check the environment variable SIGOPT_PROJECT if left unspecified",
+)
 
 args = parser.parse_args()
 if args.backend_list == "pt":
@@ -541,4 +547,5 @@ if __name__ == "__main__":
                     exp_name=exp_name,
                     mode=args.mode,
                     n_trials=args.n_trials,
+                    project=args.project,
                 )

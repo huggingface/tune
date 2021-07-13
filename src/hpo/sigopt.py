@@ -352,7 +352,7 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
         print(f"\t- {key} -> {value}")
 
     filename = kwargs["logfile"]
-    with open(filename, "a") as f:
+    with open(filename, "w") as f:
         print(f"Saved the Sigopt experiment report at {filename}")
         json.dump(report, f)
         f.write("\n")

@@ -1,5 +1,6 @@
 import copy
 import functools
+import json
 import os
 
 import joblib
@@ -193,11 +194,11 @@ objectives = {
 }
 
 
-create_study_functions = {
-    TuningMode.LATENCY: create_study,
-    TuningMode.THROUGHPUT: create_study,
-    TuningMode.BOTH: optuna.multi_objective.create_study,
-}
+# create_study_functions = {
+#     TuningMode.LATENCY: create_study,
+#     TuningMode.THROUGHPUT: create_study,
+#     TuningMode.BOTH: optuna.multi_objective.create_study,
+# }
 
 
 @tune_function
@@ -206,12 +207,13 @@ def optuna_tune(launcher_parameters=None, main_parameters=None, **kwargs):
     exp_name = kwargs["exp_name"]
     n_trials = kwargs["n_trials"]
 
-    study_fn = create_study_functions[mode]
+    # study_fn = create_study_functions[mode]
     sampler_cls = samplers[mode]
     direction = directions[mode]
     objective = objectives[mode]
 
-    study = study_fn(sampler=sampler_cls(), **direction)
+    # study = study_fn(sampler=sampler_cls(), **direction)
+    study = create_study(sampler=sampler_cls(), **direction)
     objective = functools.partial(
         objective,
         launcher_parameters=launcher_parameters,
@@ -222,26 +224,65 @@ def optuna_tune(launcher_parameters=None, main_parameters=None, **kwargs):
 
     study_path = os.path.join("outputs", f"{exp_name}_study.pkl")
     joblib.dump(study, study_path)
+
     print(
         f"Saved study at {study_path}, this can be useful to access extra information"
     )
+
+    report = {}
+    report["Batch size"] = main_parameters["batch_size"]
+    report["Sequence length"] = main_parameters["sequence_length"]
+    report["Mode"] = kwargs["mode"].value
+    report["Framework"] = main_parameters["backend"]
+    report_path = os.path.join("outputs", f"{exp_name}_report.json")
 
     def multi_objective_target(trial, idx_to_target):
         return trial.values[idx_to_target]
 
     if mode is TuningMode.BOTH:
-        param_importances_for_latency = get_param_importances(
-            study, target=functools.partial(multi_objective_target, idx_to_target=0)
-        )
-        param_importances_for_throughput = get_param_importances(
-            study, target=functools.partial(multi_objective_target, idx_to_target=1)
-        )
+        try:
+            param_importances_for_latency = get_param_importances(
+                study, target=functools.partial(multi_objective_target, idx_to_target=0)
+            )
+            param_importances_for_throughput = get_param_importances(
+                study, target=functools.partial(multi_objective_target, idx_to_target=1)
+            )
+        except ZeroDivisionError:
+            print(
+                "Parameter importances evaluation failed (most likely due to a too small number of trials)"
+            )
+            param_importances_for_latency = param_importances_for_throughput = "NA"
+
         importances = {
             "Latency": param_importances_for_latency,
             "Throughput": param_importances_for_throughput,
         }
 
-        print("To get the best parameters, check the pareto front")
+        print("To get the best parameters, check the pareto front.")
+
+        report["Parameter importances"] = importances
+        report["Best trials"] = []
+        for trial in study.best_trials:
+            trial_result = {
+                "Latency": trial.values[0],
+                "Throughput": trial.values[1],
+                **trial.params,
+            }
+            report["Best trials"].append(trial_result)
+
+        # importances_path = os.path.join("outputs", f"{exp_name}_importances.csv")
+        # df = pd.DataFrame.from_dict(importances)
+        # df.to_csv(importances_path)
+
+        pareto_front_path = os.path.join("outputs", f"{exp_name}_pareto_front.png")
+        report["Pareto front path"] = pareto_front_path
+
+        fig = optuna.visualization.plot_pareto_front(
+            study, target_names=["Latency", "Throughput"]
+        )
+        fig.write_image(pareto_front_path)
+
+        print(f"Saved Pareto front figure at {pareto_front_path}\n")
 
         print("Parameter importance for latency:")
         for param, importance in importances["Latency"].items():
@@ -251,23 +292,11 @@ def optuna_tune(launcher_parameters=None, main_parameters=None, **kwargs):
         for param, importance in importances["Throughput"].items():
             print(f"\t- {param} -> {importance}")
 
-        importances_path = os.path.join("outputs", f"{exp_name}_importances.csv")
-        df = pd.DataFrame.from_dict(importances)
-        df.to_csv(importances_path)
-
-        pareto_front_path = os.path.join("outputs", f"{exp_name}_pareto_front.png")
-        fig = optuna.multi_objective.visualization.plot_pareto_front(
-            study, names=["Latency", "Throughput"]
-        )
-        fig.write_image(pareto_front_path)
-
-        print(
-            f"Saved parameter importances at {importances_path}"
-            f" and Pareto front figure at {pareto_front_path}"
-        )
-
     else:
         importances = get_param_importances(study)
+        report["Parameter importances"] = importances
+        report["Best parameters"] = study.best_params
+
         print(
             "Best {}: {} (params: {})\n".format(
                 mode.value.lower(), study.best_value, study.best_params
@@ -277,16 +306,15 @@ def optuna_tune(launcher_parameters=None, main_parameters=None, **kwargs):
         for param, importance in importances.items():
             print(f"\t- {param} -> {importance}")
 
-        study_result = {}
-        for param in study.best_params:
-            importance = importances.get(param, 0)
-            param_value = study.best_params[param]
-            study_result[param] = {"importance": importance, "value": param_value}
+        # study_result = {}
+        # for param in study.best_params:
+        #     importance = importances.get(param, 0)
+        #     param_value = study.best_params[param]
+        #     study_result[param] = {"importance": importance, "value": param_value}
 
-        filename = f"{exp_name}_importances_and_values.csv"
-        path = os.path.join("outputs", filename)
+        # df = pd.DataFrame.from_dict(study_result)
+        # df.to_csv(path)
 
-        df = pd.DataFrame.from_dict(study_result)
-        df.to_csv(path)
-
-        print(f"Saved parameter importances and values at {path}")
+    with open(report_path, "w") as f:
+        print(f"Saved the Optuna experiment report at {report_path}")
+        json.dump(report, f)
