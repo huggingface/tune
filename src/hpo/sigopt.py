@@ -45,7 +45,10 @@ def convert_fmt(file):
 
 
 def create_experiment(
-    conn, experiment_info, specified_candidates=None, specified_parameters=None
+    conn,
+    experiment_info,
+    specified_candidates=None,
+    specified_parameters=None,
 ):
     if specified_candidates is None:
         specified_candidates = {}
@@ -117,11 +120,23 @@ def create_experiment(
             experiment_meta["parameters"].pop(param)
 
     for param in specified_candidates:
+        if param == "instances":
+            continue
         candidates = list(map(str, specified_candidates[param]))
         experiment_meta["parameters"][param] = {
             "categorical_values": list(map(str, candidates)),
             "name": param,
             "type": "categorical",
+        }
+
+    idx2nb_instances = None
+    idx2nb_cores = None
+    if "instances" in specified_candidates:
+        idx2nb_instances = specified_candidates["instances"]
+        experiment_meta["parameters"]["instances"] = {
+            "bounds": {"min": 1, "max": len(idx2nb_instances)},
+            "name": "instances",
+            "type": "int",
         }
 
     # Because we cannot choose both the number of instances and the number of cores with Sigopt,
@@ -140,22 +155,20 @@ def create_experiment(
             }
 
         if candidates_type == "discrete" and len(nb_cores) > 1:
-            nb_cores = list(map(str, nb_cores))
+            idx2nb_cores = nb_cores
             experiment_meta["parameters"]["nb_cores"] = {
-                "categorical_values": nb_cores,
+                "bounds": {"min": 1, "max": len(idx2nb_cores)},
                 "name": "nb_cores",
-                "type": "categorical",
+                "type": "int",
             }
 
     print(experiment_meta["parameters"])
     experiment_meta["parameters"] = list(experiment_meta["parameters"].values())
 
     experiment = conn.experiments().create(**experiment_meta)
-    print(
-        f"Created experiment: https://app.sigopt.com/experiment/{experiment.id}",
-        flush=True,
-    )
-    return experiment
+    print(f"Created experiment: https://app.sigopt.com/experiment/{experiment.id}")
+
+    return experiment, idx2nb_instances, idx2nb_cores
 
 
 @tune_function
@@ -207,7 +220,7 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
     if project_name:
         experiment_info["project"] = project_name
 
-    experiment = create_experiment(
+    experiment, idx2nb_instances, idx2nb_cores = create_experiment(
         conn,
         experiment_info,
         specified_candidates=manually_specified_candidates,
@@ -215,7 +228,7 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
     )
     experiment_id = hexlify(getrandbits(32).to_bytes(4, "big")).decode("ascii")
 
-    while experiment.progress.observation_count < experiment.observation_budget:
+    for _ in range(experiment.observation_budget):
         suggestion = conn.experiments(experiment.id).suggestions().create()
         assignments_dict = dict(suggestion.assignments)
 
@@ -224,12 +237,16 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
 
         # Setting the number of cores and instances if this was not set before.
         if "nb_cores" not in assignments_dict:
-            assignments_dict["nb_cores"] = generate_nb_cores_candidates(
+            _, nb_cores = generate_nb_cores_candidates(
                 main_parameters["batch_size"],
                 mode,
                 cpu_info,
-                nb_instances=int(assignments_dict["nb_cores"]),
+                nb_instances=int(assignments_dict["instances"]),
             )
+
+            # With Optuna, a value is selected between 1 and total_num_cores // nb_instances but
+            # here total_num_cores // nb_instances is used as making a choice is no longer possible.
+            assignments_dict["nb_cores"] = nb_cores[-1]
 
         if "instances" not in assignments_dict:
             default_nb_instances = generate_nb_instances_candidates(
@@ -246,6 +263,11 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
             main_parameters=main_parameters,
             experiment_id=experiment_id,
         )
+
+        # Dummy experiment to make testing faster.
+        # from .utils import ExperimentResult
+        # exp_result = ExperimentResult(latency=1.2, throughput=1.1)
+
         values = {
             TuningMode.LATENCY: [{"name": "latency", "value": exp_result.latency}],
             TuningMode.THROUGHPUT: [
@@ -270,15 +292,35 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
                 flush=True,
             )
         else:
-            conn.experiments(experiment.id).observations().create(
-                suggestion=suggestion.id,
-                values=values[mode],
+            observation = (
+                conn.experiments(experiment.id)
+                .observations()
+                .create(
+                    suggestion=suggestion.id,
+                    values=values[mode],
+                )
             )
+            updated_assignments = {
+                k: v for k, v in assignments_dict.items() if k in suggestion.assignments
+            }
+            if idx2nb_instances is not None:
+                updated_assignments["instances"] = idx2nb_instances[
+                    updated_assignments["instances"] - 1
+                ]
+            if idx2nb_cores is not None:
+                updated_assignments["nb_cores"] = idx2nb_cores[
+                    updated_assignments["nb_cores"] - 1
+                ]
+            if idx2nb_instances is not None or idx2nb_cores is not None:
+                conn.experiments(experiment.id).observations(observation.id).update(
+                    suggestion=None, assignments=updated_assignments
+                )
+
         experiment = conn.experiments(experiment.id).fetch()
 
         print("-" * 40)
         print("\nSigopt suggestion:")
-        for name, assignment in suggestion.assignments.items():
+        for name, assignment in updated_assignments.items():
             print(f"\t- {name} = {assignment}")
         print(
             f"Experiment result:\n\t- Latency = {exp_result.latency} ms\n\t- Throughput = {exp_result.throughput} it/s\n"

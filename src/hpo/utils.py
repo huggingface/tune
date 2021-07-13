@@ -176,20 +176,12 @@ def launch_and_wait(
     for match in latency_matchs:
         latencies.append(match.group(1))
 
-    # print("=" * 80)
-    # print(latencies)
-    # print("=" * 80)
-
     latency = aggregate_latencies(latencies)
 
     throughput_matchs = re.finditer(RE_THROUGHPUT, output)
     throughputs = []
     for match in throughput_matchs:
         throughputs.append(match.group(1))
-
-    # print("=" * 80)
-    # print(throughputs)
-    # print("=" * 80)
 
     throughput = aggregate_throughputs(latencies)
 

@@ -34,7 +34,9 @@ import psutil
 
 from utils import CPUinfo
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 LOGGER = logging.getLogger(__name__)
 
 r"""
@@ -123,11 +125,13 @@ rank 0: *(IP: 192.168.10.10, and has a free port: 295000)*
 """
 
 SUDOER_PASSWORD = None
-THP_ALLOWED_VALUES = {'always', 'never', 'madvise'}
+THP_ALLOWED_VALUES = {"always", "never", "madvise"}
 THP_COMMON_LOCATION = "/sys/kernel/mm/transparent_hugepage/enabled"
 THP_REDHAT_LOCATION = "/sys/kernel/mm/redhat_transparent_hugepage/enabled"
 
-THP_LOCATION = THP_REDHAT_LOCATION if os.path.exists(THP_REDHAT_LOCATION) else THP_COMMON_LOCATION
+THP_LOCATION = (
+    THP_REDHAT_LOCATION if os.path.exists(THP_REDHAT_LOCATION) else THP_COMMON_LOCATION
+)
 
 
 def get_transparent_huge_pages():
@@ -149,15 +153,42 @@ def set_transparent_huge_pages(tbh_value, elevation_pwd=None):
     if os.path.exists(THP_LOCATION):
         # Clear memory cache on kernel level
         print("Clearing kernel memory cache: 'echo 3 > /proc/sys/vm/drop_caches'")
-        code = subprocess.call(f'echo {elevation_pwd} | sudo -S sh -c "sync;echo 3 > /proc/sys/vm/drop_caches"', shell=True)
-        if code != 0:
-            print(f"Unable to clear kernel memory cache, return code={code}")
+        elevation = f"echo {elevation_pwd} |" if elevation_pwd else ""
+        try:
+            code = subprocess.check_call(
+                'sh -c "sync;echo 3 > /proc/sys/vm/drop_caches"', shell=True
+            )
+        except subprocess.CalledProcessError:
+            print("Retrying with sudo...")
+            code = subprocess.call(
+                f'{elevation} sudo -S sh -c "sync;echo 3 > /proc/sys/vm/drop_caches"',
+                shell=True,
+            )
+            if code != 0:
+                print(f"Unable to clear kernel memory cache, return code={code}")
+            else:
+                print("Worked!")
 
         # Explicitly ask for huge pages
-        print(f'Setting Transparent Huge Page to status: "echo {tbh_value} > {THP_LOCATION}"')
-        code = subprocess.call(f'echo {elevation_pwd} | sudo -S sh -c "echo {tbh_value} > {THP_LOCATION}"', shell=True)
-        if code != 0:
-            print(f"Unable to set kernel transparent huge pages, return code={code}")
+        print(
+            f'Setting Transparent Huge Page to status: "echo {tbh_value} > {THP_LOCATION}"'
+        )
+        try:
+            code = subprocess.check_call(
+                f'sh -c "echo {tbh_value} > {THP_LOCATION}"', shell=True
+            )
+        except subprocess.CalledProcessError:
+            print("Retrying with sudo...")
+            code = subprocess.call(
+                f'{elevation} sudo -S sh -c "echo {tbh_value} > {THP_LOCATION}"',
+                shell=True,
+            )
+            if code != 0:
+                print(
+                    f"Unable to set kernel transparent huge pages, return code={code}"
+                )
+            else:
+                print("Worked!")
     else:
         print("Warning: Unable to enable Transparent HugePages.")
 
@@ -186,7 +217,7 @@ def set_mpi_pin_domain(args):
         begin = proc * cores_per_rank + args.ccl_worker_count
         end = proc * cores_per_rank + cores_per_rank - 1
         for i in range(begin, end + 1):
-            domain_binary |= (1 << i)
+            domain_binary |= 1 << i
         pin_domain += hex(domain_binary) + ","
     return pin_domain + "]"
 
@@ -203,7 +234,7 @@ def set_ccl_worker_affinity(args):
     if args.use_logical_core:
         total_cores = cpuinfo.logical_core_nums
     cores_per_rank = total_cores // ppn
-    affinity = ''
+    affinity = ""
 
     for proc in range(ppn):
         for ccl_worker in range(args.ccl_worker_count):
@@ -259,8 +290,9 @@ def set_memory_allocator(args):
             LOGGER.warning(
                 "Unable to find the {} library file lib{}.so in $CONDA_PREFIX/lib or  /.local/lib/"
                 " or /usr/local/lib/ or /usr/local/lib64/ or /usr/lib or /usr/lib64 or "
-                "~/.local/lib/ so the LD_PRELOAD environment variable will not be set."
-                .format("TCmalloc", "tcmalloc", expanduser("~"))
+                "~/.local/lib/ so the LD_PRELOAD environment variable will not be set.".format(
+                    "TCmalloc", "tcmalloc", expanduser("~")
+                )
             )
             args.additional_benchmark_args.append("+malloc=std")
         else:
@@ -273,8 +305,9 @@ def set_memory_allocator(args):
             LOGGER.warning(
                 "Unable to find the {} library file lib{}.so in $CONDA_PREFIX/lib or  /.local/lib/"
                 " or /usr/local/lib/ or /usr/local/lib64/ or /usr/lib or /usr/lib64 or "
-                "~/.local/lib/ so the LD_PRELOAD environment variable will not be set."
-                .format("JeMalloc", "jemalloc", expanduser("~"))
+                "~/.local/lib/ so the LD_PRELOAD environment variable will not be set.".format(
+                    "JeMalloc", "jemalloc", expanduser("~")
+                )
             )
             args.additional_benchmark_args.append("+malloc=std")
         else:
@@ -307,8 +340,7 @@ def set_memory_allocator(args):
             "Both TCMalloc and JeMalloc are not fount in $CONDA_PREFIX/lib or  /.local/lib/"
             " or /usr/local/lib/ or /usr/local/lib64/ or /usr/lib or /usr/lib64 or "
             "~/.local/lib/ so the LD_PRELOAD environment variable will not be set. "
-            "This may drop the performance"
-            .format(expanduser("~"))
+            "This may drop the performance".format(expanduser("~"))
         )
         args.additional_benchmark_args.append(f"+malloc=std")
 
@@ -316,11 +348,19 @@ def set_memory_allocator(args):
 def set_multi_thread_and_allocator(args):
     set_memory_allocator(args)
 
+    # TODO: take care of a proper way to log only once.
+    # SUDOER_PASSWORD = getpass("Setting Transparent Huge Page requires elevated privileges.\nPassword:")
+
+    # It is necessary to set explictly disable THP when enable_thp is False for the case in which
+    # it is enabled by default on the system.
+    SUDOER_PASSWORD = None
     if args.enable_thp:
-        SUDOER_PASSWORD = getpass("Setting Transparent Huge Page requires elevated privileges.\nPassword:")
-        set_transparent_huge_pages("always", SUDOER_PASSWORD)
+        set_transparent_huge_pages("always", elevation_pwd=SUDOER_PASSWORD)
+    else:
+        set_transparent_huge_pages("never", elevation_pwd=SUDOER_PASSWORD)
 
     os.environ["THP_STATUS"] = get_transparent_huge_pages()
+    LOGGER.info(f"THP_STATUS={os.environ['THP_STATUS']}")
     args.additional_benchmark_args.append(f"use_huge_page={os.environ['THP_STATUS']}")
 
     if "OMP_NUM_THREADS" not in os.environ:
@@ -340,32 +380,47 @@ def set_multi_thread_and_allocator(args):
         os.environ["KMP_BLOCKTIME"] = args.kmp_blocktime
 
     if "DNNL_PRIMITIVE_CACHE_CAPACITY" not in os.environ:
-        os.environ["DNNL_PRIMITIVE_CACHE_CAPACITY"] = '1024'
+        os.environ["DNNL_PRIMITIVE_CACHE_CAPACITY"] = "1024"
 
     LOGGER.info(f"OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']}")
     LOGGER.info(f"OMP_MAX_ACTIVE_LEVELS={os.environ['OMP_MAX_ACTIVE_LEVELS']}")
     LOGGER.info(f"KMP_AFFINITY={os.environ['KMP_AFFINITY']}")
     LOGGER.info(f"KMP_BLOCKTIME={os.environ['KMP_BLOCKTIME']}")
-    LOGGER.info(f"DNNL_PRIMITIVE_CACHE_CAPACITY={os.environ['DNNL_PRIMITIVE_CACHE_CAPACITY']}")
+    LOGGER.info(
+        f"DNNL_PRIMITIVE_CACHE_CAPACITY={os.environ['DNNL_PRIMITIVE_CACHE_CAPACITY']}"
+    )
 
     omp_backend = "default"
     if args.enable_iomp:
         find_iomp = add_lib_preload(lib_type="iomp5")
         if not find_iomp:
-            LOGGER.warning("Unable to find the {} library file lib{}.so in $CONDA_PREFIX/lib or  /.local/lib/"
-                           " or /usr/local/lib/ or /usr/local/lib64/ or /usr/lib or /usr/lib64 or "
-                           "~/.local/lib/ so the LD_PRELOAD environment variable will not be set."
-                           .format("iomp", "iomp", expanduser("~")))
+            LOGGER.warning(
+                "Unable to find the {} library file lib{}.so in $CONDA_PREFIX/lib or  /.local/lib/"
+                " or /usr/local/lib/ or /usr/local/lib64/ or /usr/lib or /usr/lib64 or "
+                "~/.local/lib/ so the LD_PRELOAD environment variable will not be set.".format(
+                    "iomp", "iomp", expanduser("~")
+                )
+            )
         else:
             omp_backend = "iomp"
 
     # Add any additional argument for benchmark script
-    args.additional_benchmark_args.append(f"backend.num_threads={os.environ['OMP_NUM_THREADS']}")
+    args.additional_benchmark_args.append(
+        f"backend.num_threads={os.environ['OMP_NUM_THREADS']}"
+    )
     args.additional_benchmark_args.append(f"+openmp.backend={omp_backend}")
-    args.additional_benchmark_args.append(f"+openmp.num_threads={os.environ['OMP_NUM_THREADS']}")
-    args.additional_benchmark_args.append(f"+openmp.max_active_levels={os.environ['OMP_MAX_ACTIVE_LEVELS']}")
-    args.additional_benchmark_args.append(f'+openmp.affinity="{os.environ["KMP_AFFINITY"]}"')
-    args.additional_benchmark_args.append(f"+openmp.blocktime={os.environ['KMP_BLOCKTIME']}")
+    args.additional_benchmark_args.append(
+        f"+openmp.num_threads={os.environ['OMP_NUM_THREADS']}"
+    )
+    args.additional_benchmark_args.append(
+        f"+openmp.max_active_levels={os.environ['OMP_MAX_ACTIVE_LEVELS']}"
+    )
+    args.additional_benchmark_args.append(
+        f'+openmp.affinity="{os.environ["KMP_AFFINITY"]}"'
+    )
+    args.additional_benchmark_args.append(
+        f"+openmp.blocktime={os.environ['KMP_BLOCKTIME']}"
+    )
 
 
 def launch(args):
@@ -378,11 +433,18 @@ def launch(args):
     if args.core_list:  # user specify what cores will be used by params
         cores = args.core_list.strip().split(",")
         if args.ncore_per_instance == -1:
-            LOGGER.error("please specify the '--ncore_per_instance' if you have pass the --core_list params")
+            LOGGER.error(
+                "please specify the '--ncore_per_instance' if you have pass the --core_list params"
+            )
             exit(-1)
-        elif args.ninstances > 1 and args.ncore_per_instance * args.ninstances < len(cores):
-            LOGGER.warning("only first {} cores will be used, but you specify {} cores in core_list".format
-                           (args.ncore_per_instance * args.ninstances, len(cores)))
+        elif args.ninstances > 1 and args.ncore_per_instance * args.ninstances < len(
+            cores
+        ):
+            LOGGER.warning(
+                "only first {} cores will be used, but you specify {} cores in core_list".format(
+                    args.ncore_per_instance * args.ninstances, len(cores)
+                )
+            )
         else:
             args.ninstances = len(cores) // args.ncore_per_instance
     else:
@@ -397,10 +459,18 @@ def launch(args):
             else:
                 cores = cpuinfo.get_all_physical_cores
 
-        if not args.multi_instance and args.ninstances == -1 and args.ncore_per_instance == -1:
+        if (
+            not args.multi_instance
+            and args.ninstances == -1
+            and args.ncore_per_instance == -1
+        ):
             args.ninstances = 1
             args.ncore_per_instance = len(cores)
-        elif args.multi_instance and args.ninstances == -1 and args.ncore_per_instance == -1:
+        elif (
+            args.multi_instance
+            and args.ninstances == -1
+            and args.ncore_per_instance == -1
+        ):
             args.throughput_performance = True
         elif args.ncore_per_instance == -1 and args.ninstances != -1:
             args.ncore_per_instance = len(cores) // args.ninstances
@@ -408,12 +478,16 @@ def launch(args):
             args.ninstances = len(cores) // args.ncore_per_instance
         else:
             if args.ninstances * args.ncore_per_instance > len(cores):
-                LOGGER.error("Please make sure ninstances * ncore_per_instance <= total_cores")
+                LOGGER.error(
+                    "Please make sure ninstances * ncore_per_instance <= total_cores"
+                )
                 exit(-1)
 
         if args.latency_performance:
             if args.ncore_per_instance != 4:
-                LOGGER.warning("latency_performance is a special mode, args.ncore_per_instance can only be set to be 4")
+                LOGGER.warning(
+                    "latency_performance is a special mode, args.ncore_per_instance can only be set to be 4"
+                )
             args.ncore_per_instance = 4
             cores = cpuinfo.get_all_physical_cores
             args.ninstances = len(cores) // args.ncore_per_instance
@@ -425,19 +499,29 @@ def launch(args):
 
     os.environ["LAUNCH_CMD"] = "#"
     os.environ["LAUNCH_THP"] = get_transparent_huge_pages()
-    os.environ["EXPERIMENT_ID"] = hexlify(getrandbits(32).to_bytes(4, 'big')).decode('ascii')
+    os.environ["EXPERIMENT_ID"] = hexlify(getrandbits(32).to_bytes(4, "big")).decode(
+        "ascii"
+    )
 
     set_multi_thread_and_allocator(args)
     args.additional_benchmark_args.append(f"num_instances={args.ninstances}")
-    args.additional_benchmark_args.append(f"num_core_per_instance={args.ncore_per_instance}")
-    experiment_id_str = os.environ['EXPERIMENT_ID'] if args.experiment_id is None else args.experiment_id
+    args.additional_benchmark_args.append(
+        f"num_core_per_instance={args.ncore_per_instance}"
+    )
+    experiment_id_str = (
+        os.environ["EXPERIMENT_ID"]
+        if args.experiment_id is None
+        else args.experiment_id
+    )
     args.additional_benchmark_args.append(f"experiment_id={experiment_id_str}")
 
     for i in range(args.ninstances):
         cmd, instance_specific_args = [], []
         instance_specific_args.append(f"instance_id={i}")
         if not args.disable_numactl:
-            instance_cores = cores[i * args.ncore_per_instance:(i + 1) * args.ncore_per_instance]
+            instance_cores = cores[
+                i * args.ncore_per_instance : (i + 1) * args.ncore_per_instance
+            ]
             instance_sockets = cpuinfo.get_sockets_for_cores(instance_cores)
 
             # Convert to numactl string argument
@@ -451,8 +535,8 @@ def launch(args):
             cmd.extend(numa_params.split())
 
             instance_specific_args.append(f"+numactl.enabled=true")
-            instance_specific_args.append(f"+numactl.cores=\"{instance_cores_str}\"")
-            instance_specific_args.append(f"+numactl.membind=\"{instance_sockets_str}\"")
+            instance_specific_args.append(f'+numactl.cores="{instance_cores_str}"')
+            instance_specific_args.append(f'+numactl.membind="{instance_sockets_str}"')
         else:
             instance_specific_args.append(f"+numactl.enabled=false")
 
@@ -464,9 +548,11 @@ def launch(args):
             cmd.append("-m")
 
         if "LD_PRELOAD" in os.environ:
-            instance_specific_args.append("+ld_preload=\"" + os.environ["LD_PRELOAD"] + "\"")
+            instance_specific_args.append(
+                '+ld_preload="' + os.environ["LD_PRELOAD"] + '"'
+            )
         else:
-            instance_specific_args.append("+ld_preload=\"\"")
+            instance_specific_args.append('+ld_preload=""')
 
         cmd.append(args.program)
         cmd.extend(args.program_args)
@@ -486,9 +572,15 @@ def launch(args):
 
     if args.enable_thp:
         # reset to existing val
-        set_transparent_huge_pages(os.environ["LAUNCH_THP"], SUDOER_PASSWORD)
+        # set_transparent_huge_pages(os.environ["LAUNCH_THP"], SUDOER_PASSWORD)
 
-    print(f"Experiment results saved at: {os.path.join('outputs', os.environ['EXPERIMENT_ID'])}")
+        # It is necessary to set explictly disable THP when enable_thp is False for the case in
+        # which it is enabled by default on the system.
+        set_transparent_huge_pages("never", SUDOER_PASSWORD)
+
+    print(
+        f"Experiment results saved at: {os.path.join('outputs', os.environ['EXPERIMENT_ID'])}"
+    )
 
 
 def mpi_dist_launch(args):
@@ -496,8 +588,10 @@ def mpi_dist_launch(args):
     Set ENVs and launch MPI process for distributed training.
     """
     if args.nnodes > 1 and not os.path.exists(args.hostfile):
-        raise ValueError("hostfile is necessary when you use multi-node distributed training,"
-                         "Please create hostfile which include the ip list you used for distributed running")
+        raise ValueError(
+            "hostfile is necessary when you use multi-node distributed training,"
+            "Please create hostfile which include the ip list you used for distributed running"
+        )
     elif args.nnodes > 1:
         ipv4_addr_pattern = r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
         ip_list = []
@@ -511,7 +605,9 @@ def mpi_dist_launch(args):
                 else:
                     ip_list.append(line)
         if len(ip_list) < args.nnodes:
-            LOGGER.error(f"The number of IP {len(ip_list)} should greater than nnodes parameters {args.nnodes}")
+            LOGGER.error(
+                f"The number of IP {len(ip_list)} should greater than nnodes parameters {args.nnodes}"
+            )
             exit(-1)
         master_check = False
         dic = psutil.net_if_addrs()
@@ -530,7 +626,9 @@ def mpi_dist_launch(args):
         LOGGER.info("Begin to validate the ip connect")
         args.master_addr = ip_list[0]
         for ip in ip_list[1:]:
-            completed_process = subprocess.run("ssh -o PasswordAuthentication=no {} ':'".format(ip), shell=True)
+            completed_process = subprocess.run(
+                "ssh -o PasswordAuthentication=no {} ':'".format(ip), shell=True
+            )
             if completed_process.returncode != 0:
                 LOGGER.error(
                     f"Password-less SSH login to {args.master_addr} failed, "
@@ -538,7 +636,11 @@ def mpi_dist_launch(args):
                 )
                 exit(-1)
             else:
-                LOGGER.info("connection from master node {} to slave node {} is OK".format(args.master_addr, ip))
+                LOGGER.info(
+                    "connection from master node {} to slave node {} is OK".format(
+                        args.master_addr, ip
+                    )
+                )
 
     set_memory_allocator(args)
 
@@ -572,10 +674,13 @@ def mpi_dist_launch(args):
     if args.enable_iomp:
         find_iomp = add_lib_preload(lib_type="iomp")
         if not find_iomp:
-            LOGGER.warning("Unable to find the {} library file lib{}.so in $CONDA_PREFIX/lib or  /.local/lib/"
-                           " or /usr/local/lib/ or /usr/local/lib64/ or /usr/lib or /usr/lib64 or "
-                           "~/.local/lib/ so the LD_PRELOAD environment variable will not be set."
-                           .format("iomp", "iomp", expanduser("~")))
+            LOGGER.warning(
+                "Unable to find the {} library file lib{}.so in $CONDA_PREFIX/lib or  /.local/lib/"
+                " or /usr/local/lib/ or /usr/local/lib64/ or /usr/lib or /usr/lib64 or "
+                "~/.local/lib/ so the LD_PRELOAD environment variable will not be set.".format(
+                    "iomp", "iomp", expanduser("~")
+                )
+            )
         else:
             LOGGER.info("Enable iomp by set LD_PRELOAD")
 
@@ -587,9 +692,14 @@ def mpi_dist_launch(args):
     LOGGER.info("CCL_WORKER_AFFINITY={}".format(os.environ["CCL_WORKER_AFFINITY"]))
 
     os.environ["LAUNCH_CMD"] = "#"
-    cmd = ['mpiexec.hydra']
-    mpi_config = "-l -np {} -ppn {} -genv I_MPI_PIN_DOMAIN={} -genv OMP_NUM_THREADS={} ".format(
-        args.nnodes*args.nproc_per_node, args.nproc_per_node,  mpi_pin_domain, opm_num_threads
+    cmd = ["mpiexec.hydra"]
+    mpi_config = (
+        "-l -np {} -ppn {} -genv I_MPI_PIN_DOMAIN={} -genv OMP_NUM_THREADS={} ".format(
+            args.nnodes * args.nproc_per_node,
+            args.nproc_per_node,
+            mpi_pin_domain,
+            opm_num_threads,
+        )
     )
     mpi_config += args.more_mpi_parms
 
@@ -618,35 +728,71 @@ def add_distributed_training_params(parser):
     cpuinfo = CPUinfo()
     socket_nums = cpuinfo.socket_nums
 
-    group = parser.add_argument_group("Distributed Training Parameters With oneCCL backend")
-    group.add_argument("--nnodes", metavar='\b', type=int, default=1,
-                       help="The number of nodes to use for distributed "
-                            "training")
-    group.add_argument("--nproc_per_node", metavar='\b', type=int, default=socket_nums,
-                       help="The number of processes to launch on each node")
+    group = parser.add_argument_group(
+        "Distributed Training Parameters With oneCCL backend"
+    )
+    group.add_argument(
+        "--nnodes",
+        metavar="\b",
+        type=int,
+        default=1,
+        help="The number of nodes to use for distributed " "training",
+    )
+    group.add_argument(
+        "--nproc_per_node",
+        metavar="\b",
+        type=int,
+        default=socket_nums,
+        help="The number of processes to launch on each node",
+    )
 
     # ccl control
-    group.add_argument("--ccl_worker_count", metavar='\b', default=4, type=int,
-                       help="Core numbers per rank used for ccl communication")
+    group.add_argument(
+        "--ccl_worker_count",
+        metavar="\b",
+        default=4,
+        type=int,
+        help="Core numbers per rank used for ccl communication",
+    )
 
     # mpi control
-    group.add_argument("--master_addr", metavar='\b', default="127.0.0.1", type=str,
-                       help="Master node (rank 0)'s address, should be either "
-                            "the IP address or the hostname of node 0, for "
-                            "single node multi-proc training, the "
-                            "--master_addr can simply be 127.0.0.1")
-    group.add_argument("--master_port", metavar='\b', default=29500, type=int,
-                       help="Master node (rank 0)'s free port that needs to "
-                            "be used for communication during distributed "
-                            "training")
-    group.add_argument("--hostfile", metavar='\b', default="hostfile", type=str,
-                       help="Hostfile is necessary for multi-node multi-proc "
-                            "training. hostfile includes the node address list "
-                            "node address which should be either the IP address"
-                            "or the hostname.")
-    group.add_argument("--more_mpi_parms", metavar='\b', default="", type=str,
-                       help="User can pass more parameters for mpiexec.hydra "
-                            "except for -np -ppn -hostfile and -genv I_MPI_PIN_DOMAIN")
+    group.add_argument(
+        "--master_addr",
+        metavar="\b",
+        default="127.0.0.1",
+        type=str,
+        help="Master node (rank 0)'s address, should be either "
+        "the IP address or the hostname of node 0, for "
+        "single node multi-proc training, the "
+        "--master_addr can simply be 127.0.0.1",
+    )
+    group.add_argument(
+        "--master_port",
+        metavar="\b",
+        default=29500,
+        type=int,
+        help="Master node (rank 0)'s free port that needs to "
+        "be used for communication during distributed "
+        "training",
+    )
+    group.add_argument(
+        "--hostfile",
+        metavar="\b",
+        default="hostfile",
+        type=str,
+        help="Hostfile is necessary for multi-node multi-proc "
+        "training. hostfile includes the node address list "
+        "node address which should be either the IP address"
+        "or the hostname.",
+    )
+    group.add_argument(
+        "--more_mpi_parms",
+        metavar="\b",
+        default="",
+        type=str,
+        help="User can pass more parameters for mpiexec.hydra "
+        "except for -np -ppn -hostfile and -genv I_MPI_PIN_DOMAIN",
+    )
 
 
 def add_memory_allocator_params(parser):
@@ -654,18 +800,40 @@ def add_memory_allocator_params(parser):
     group = parser.add_argument_group("Memory Allocator Parameters")
 
     # allocator control
-    group.add_argument("--enable_tcmalloc", action='store_true', default=False,
-                       help="Enable tcmalloc allocator")
-    group.add_argument("--enable_jemalloc", action='store_true', default=False,
-                       help="Enable jemalloc allocator")
-    group.add_argument("--use_default_allocator",  action='store_true', default=False,
-                       help="Use default memory allocator")
-    group.add_argument("--malloc_conf", metavar='\b', default="oversize_threshold:1,background_thread:true,metadata_thp:auto,dirty_decay_ms:9000000000,muzzy_decay_ms:9000000000", type=str,
-                       help="MALLOC_CONF setup, for jemalloc only, environment variable has higher priority than this args."
-                       "default value is : oversize_threshold:1,background_thread:true,metadata_thp:auto,dirty_decay_ms:9000000000,muzzy_decay_ms:9000000000")
+    group.add_argument(
+        "--enable_tcmalloc",
+        action="store_true",
+        default=False,
+        help="Enable tcmalloc allocator",
+    )
+    group.add_argument(
+        "--enable_jemalloc",
+        action="store_true",
+        default=False,
+        help="Enable jemalloc allocator",
+    )
+    group.add_argument(
+        "--use_default_allocator",
+        action="store_true",
+        default=False,
+        help="Use default memory allocator",
+    )
+    group.add_argument(
+        "--malloc_conf",
+        metavar="\b",
+        default="oversize_threshold:1,background_thread:true,metadata_thp:auto,dirty_decay_ms:9000000000,muzzy_decay_ms:9000000000",
+        type=str,
+        help="MALLOC_CONF setup, for jemalloc only, environment variable has higher priority than this args."
+        "default value is : oversize_threshold:1,background_thread:true,metadata_thp:auto,dirty_decay_ms:9000000000,muzzy_decay_ms:9000000000",
+    )
 
     # transparent huge pages
-    group.add_argument("--enable_thp", action="store_true", default=False, help="Enable Transparent Huge Pages")
+    group.add_argument(
+        "--enable_thp",
+        action="store_true",
+        default=False,
+        help="Enable Transparent Huge Pages",
+    )
 
 
 def add_multi_instance_params(parser):
@@ -673,38 +841,95 @@ def add_multi_instance_params(parser):
     group = parser.add_argument_group("Multi-instance Parameters")
 
     # multi-instance control
-    group.add_argument("--experiment_id", metavar='\b', default=None, type=str,
-                       help="Specify the experiment id to store the result.")
-    group.add_argument("--ncore_per_instance", metavar='\b', default=-1, type=int,
-                       help="Cores per instance")
-    group.add_argument("--ninstances", metavar='\b', default=-1, type=int,
-                       help="For multi-instance, you should give the cores number you used for per insantance.")
-    group.add_argument("--latency_performance", action='store_true', default=False,
-                       help="By detault 4 core per instance and use all physical cores")
-    group.add_argument("--throughput_performance", action='store_true', default=False,
-                       help="By default one instance per socket and use all physical cores")
-    group.add_argument("--socket_id", metavar='\b', default=-1, type=int,
-                       help="Socket id for multi-instance, by default all sockets will be used")
-    group.add_argument("--use_logical_core", action='store_true', default=False,
-                       help="Whether only use physical cores")
-    group.add_argument("--disable_numactl",  action='store_true', default=False,
-                       help="Disable numactl")
-    group.add_argument("--core_list", metavar='\b', default=None, type=str,
-                       help="Specify the core list as 'core_id, core_id, ....', otherwise, all the cores will be used.")
+    group.add_argument(
+        "--experiment_id",
+        metavar="\b",
+        default=None,
+        type=str,
+        help="Specify the experiment id to store the result.",
+    )
+    group.add_argument(
+        "--ncore_per_instance",
+        metavar="\b",
+        default=-1,
+        type=int,
+        help="Cores per instance",
+    )
+    group.add_argument(
+        "--ninstances",
+        metavar="\b",
+        default=-1,
+        type=int,
+        help="For multi-instance, you should give the cores number you used for per insantance.",
+    )
+    group.add_argument(
+        "--latency_performance",
+        action="store_true",
+        default=False,
+        help="By detault 4 core per instance and use all physical cores",
+    )
+    group.add_argument(
+        "--throughput_performance",
+        action="store_true",
+        default=False,
+        help="By default one instance per socket and use all physical cores",
+    )
+    group.add_argument(
+        "--socket_id",
+        metavar="\b",
+        default=-1,
+        type=int,
+        help="Socket id for multi-instance, by default all sockets will be used",
+    )
+    group.add_argument(
+        "--use_logical_core",
+        action="store_true",
+        default=False,
+        help="Whether only use physical cores",
+    )
+    group.add_argument(
+        "--disable_numactl", action="store_true", default=False, help="Disable numactl"
+    )
+    group.add_argument(
+        "--core_list",
+        metavar="\b",
+        default=None,
+        type=str,
+        help="Specify the core list as 'core_id, core_id, ....', otherwise, all the cores will be used.",
+    )
 
 
 def add_kmp_iomp_params(parser):
 
     group = parser.add_argument_group("KMP/IOMP Affinity Parameters")
-    group.add_argument("--kmp_affinity", metavar='\b', default="granularity=fine,compact,1,0", type=str,
-                       help="KMP_AFFINITY setup, environment variable has higher priority than this args."
-                            "default value is : granularity=fine,compact,1,0")
-    group.add_argument("--kmp_blocktime", metavar='\b', default="1", type=str,
-                       help="KMP_BLOCKTIME setup, environment variable has higher priority than this args."
-                            "default value is : 1")
-    group.add_argument("--omp_max_active_levels", type=int, default=1, help="Set OMP_MAX_ACTIVE_LEVELS env var.")
-    group.add_argument("--enable_iomp", action='store_true', default=False,
-                       help="Enable iomp and libiomp.so will be add to LD_PRELOAD")
+    group.add_argument(
+        "--kmp_affinity",
+        metavar="\b",
+        default="granularity=fine,compact,1,0",
+        type=str,
+        help="KMP_AFFINITY setup, environment variable has higher priority than this args."
+        "default value is : granularity=fine,compact,1,0",
+    )
+    group.add_argument(
+        "--kmp_blocktime",
+        metavar="\b",
+        default="1",
+        type=str,
+        help="KMP_BLOCKTIME setup, environment variable has higher priority than this args."
+        "default value is : 1",
+    )
+    group.add_argument(
+        "--omp_max_active_levels",
+        type=int,
+        default=1,
+        help="Set OMP_MAX_ACTIVE_LEVELS env var.",
+    )
+    group.add_argument(
+        "--enable_iomp",
+        action="store_true",
+        default=False,
+        help="Enable iomp and libiomp.so will be add to LD_PRELOAD",
+    )
 
 
 def parse_system_info(args):
@@ -722,39 +947,58 @@ def parse_args():
     Helper function parsing the command line options
     @retval ArgumentParser
     """
-    parser = ArgumentParser(description="This is a script for launching PyTorch training and inference on Intel Xeon CPU "
-                                        "with optimal configurations. Now, single instance inference/training, multi-instance "
-                                        "inference/training and distributed training with oneCCL backend is enabled. "
-                                        "To get the peak performance on Intel Xeon CPU, the script optimizes the configuration "
-                                        "of thread and memory management. For thread management, the script configures thread "
-                                        "affinity and the preload of Intel OMP library. For memory management, it configures "
-                                        "NUMA binding and preload optimized memory allocation library (e.g. tcmalloc, jemalloc) "
-                                        "\n################################# Basic usage ############################# \n"
-                                        "\n 1. single instance\n"
-                                        "\n   >>> python -m intel_pytorch_extension.launch python_script args \n"
-                                        "\n2. multi-instance \n"
-                                        "\n    >>> python -m intel_pytorch_extension.launch --multi_instance python_script args\n"
-                                        "\n3. Single-Node multi-process distributed training\n"
-                                        "\n    >>> python  -m intel_pytorch_extension.launch --distributed  python_script args\n"
-                                        "\n4. Multi-Node multi-process distributed training: (e.g. two nodes)\n"
-                                        "\n   rank 0: *(IP: 192.168.10.10, and has a free port: 295000)*\n"
-                                        "\n   >>> python -m intel_pytorch_extension.launch --distributed --nproc_per_node=2\n"
-                                        "\n       --nnodes=2 --hostfile hostfile python_script args\n",
-                            formatter_class=RawTextHelpFormatter)
+    parser = ArgumentParser(
+        description="This is a script for launching PyTorch training and inference on Intel Xeon CPU "
+        "with optimal configurations. Now, single instance inference/training, multi-instance "
+        "inference/training and distributed training with oneCCL backend is enabled. "
+        "To get the peak performance on Intel Xeon CPU, the script optimizes the configuration "
+        "of thread and memory management. For thread management, the script configures thread "
+        "affinity and the preload of Intel OMP library. For memory management, it configures "
+        "NUMA binding and preload optimized memory allocation library (e.g. tcmalloc, jemalloc) "
+        "\n################################# Basic usage ############################# \n"
+        "\n 1. single instance\n"
+        "\n   >>> python -m intel_pytorch_extension.launch python_script args \n"
+        "\n2. multi-instance \n"
+        "\n    >>> python -m intel_pytorch_extension.launch --multi_instance python_script args\n"
+        "\n3. Single-Node multi-process distributed training\n"
+        "\n    >>> python  -m intel_pytorch_extension.launch --distributed  python_script args\n"
+        "\n4. Multi-Node multi-process distributed training: (e.g. two nodes)\n"
+        "\n   rank 0: *(IP: 192.168.10.10, and has a free port: 295000)*\n"
+        "\n   >>> python -m intel_pytorch_extension.launch --distributed --nproc_per_node=2\n"
+        "\n       --nnodes=2 --hostfile hostfile python_script args\n",
+        formatter_class=RawTextHelpFormatter,
+    )
 
-    parser.add_argument("--multi_instance", action='store_true', default=False,
-                        help="Enable multi-instance, by default one instance per socket")
+    parser.add_argument(
+        "--multi_instance",
+        action="store_true",
+        default=False,
+        help="Enable multi-instance, by default one instance per socket",
+    )
 
-    parser.add_argument('--distributed', action='store_true', default=False,
-                        help='Enable distributed training.')
-    parser.add_argument("-m", "--module", default=False, action="store_true",
-                        help="Changes each process to interpret the launch script "
-                             "as a python module, executing with the same behavior as"
-                             "'python -m'.")
+    parser.add_argument(
+        "--distributed",
+        action="store_true",
+        default=False,
+        help="Enable distributed training.",
+    )
+    parser.add_argument(
+        "-m",
+        "--module",
+        default=False,
+        action="store_true",
+        help="Changes each process to interpret the launch script "
+        "as a python module, executing with the same behavior as"
+        "'python -m'.",
+    )
 
-    parser.add_argument("--no_python", default=False, action="store_true",
-                        help="Do not prepend the --program script with \"python\" - just exec "
-                             "it directly. Useful when the script is not a Python script.")
+    parser.add_argument(
+        "--no_python",
+        default=False,
+        action="store_true",
+        help='Do not prepend the --program script with "python" - just exec '
+        "it directly. Useful when the script is not a Python script.",
+    )
 
     add_memory_allocator_params(parser)
     add_kmp_iomp_params(parser)
@@ -763,12 +1007,15 @@ def parse_args():
     add_multi_instance_params(parser)
 
     # positional
-    parser.add_argument("program", type=str,
-                        help="The full path to the proram/script to be launched. "
-                             "followed by all the arguments for the script")
+    parser.add_argument(
+        "program",
+        type=str,
+        help="The full path to the proram/script to be launched. "
+        "followed by all the arguments for the script",
+    )
 
     # rest from the training program
-    parser.add_argument('program_args', nargs=REMAINDER)
+    parser.add_argument("program_args", nargs=REMAINDER)
     return parser.parse_args()
 
 
@@ -784,10 +1031,14 @@ def main():
     parse_system_info(args)
 
     if args.distributed and args.multi_instance:
-        raise RuntimeError("Either args.distributed or args.multi_instance should be set")
+        raise RuntimeError(
+            "Either args.distributed or args.multi_instance should be set"
+        )
 
     if args.latency_performance and args.throughput_performance:
-        raise RuntimeError("Either args.latency_performance or args.throughput_performance  should be set")
+        raise RuntimeError(
+            "Either args.latency_performance or args.throughput_performance  should be set"
+        )
 
     if args.nnodes > 1:
         args.distributed = True
@@ -798,7 +1049,7 @@ def main():
         launch(args)
 
     for x in sorted(set(os.environ.keys()) - env_before):
-        LOGGER.debug(f'{x}={os.environ[x]}')
+        LOGGER.debug(f"{x}={os.environ[x]}")
 
 
 if __name__ == "__main__":
