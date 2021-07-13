@@ -235,6 +235,15 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
         # Setting values that were manually specified (as they will not be suggested by Sigopt)
         assignments_dict.update(manually_specified_parameters)
 
+        if idx2nb_instances is not None:
+            assignments_dict["instances"] = idx2nb_instances[
+                assignments_dict["instances"] - 1
+            ]
+        if idx2nb_cores is not None:
+            assignments_dict["nb_cores"] = idx2nb_cores[
+                assignments_dict["nb_cores"] - 1
+            ]
+
         # Setting the number of cores and instances if this was not set before.
         if "nb_cores" not in assignments_dict:
             _, nb_cores = generate_nb_cores_candidates(
@@ -303,14 +312,6 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
             updated_assignments = {
                 k: v for k, v in assignments_dict.items() if k in suggestion.assignments
             }
-            if idx2nb_instances is not None:
-                updated_assignments["instances"] = idx2nb_instances[
-                    updated_assignments["instances"] - 1
-                ]
-            if idx2nb_cores is not None:
-                updated_assignments["nb_cores"] = idx2nb_cores[
-                    updated_assignments["nb_cores"] - 1
-                ]
             if idx2nb_instances is not None or idx2nb_cores is not None:
                 conn.experiments(experiment.id).observations(observation.id).update(
                     suggestion=None, assignments=updated_assignments

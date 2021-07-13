@@ -71,6 +71,13 @@ parser.add_argument(
     default=TuningMode.BOTH,
     help="The criteria to use for the benchmark",
 )
+parser.add_argument(
+    "--n_trials",
+    type=int,
+    default=50,
+    help="The number of trials per experiment",
+)
+
 args = parser.parse_args()
 if args.backend_list == "pt":
     backends = pt_experiment_backends
@@ -521,7 +528,7 @@ if __name__ == "__main__":
                     main_parameters=main_parameters,
                     exp_name=exp_name,
                     mode=args.mode,
-                    n_trials=50,
+                    n_trials=args.n_trials,
                 )
 
                 print("\nTuning with Sigopt")
@@ -533,5 +540,5 @@ if __name__ == "__main__":
                     main_parameters=main_parameters,
                     exp_name=exp_name,
                     mode=args.mode,
-                    n_trials=50,
+                    n_trials=args.n_trials,
                 )
