@@ -234,7 +234,7 @@ def optuna_tune(launcher_parameters=None, main_parameters=None, **kwargs):
     report["Sequence length"] = main_parameters["sequence_length"]
     report["Mode"] = kwargs["mode"].value
     report["Framework"] = main_parameters["backend"]
-    report_path = os.path.join("outputs", f"{exp_name}_report.json")
+    report_path = os.path.join("outputs", f"{exp_name}_optuna_report.json")
 
     def multi_objective_target(trial, idx_to_target):
         return trial.values[idx_to_target]

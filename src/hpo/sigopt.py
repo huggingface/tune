@@ -192,25 +192,26 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
 
     cpu_info = CPUinfo()
 
-    if kwargs.get("convert_csv", False):
-        if "logfile" not in kwargs:
-            raise ValueError(
-                "a log file needs to be specified when convert_csv is True"
-            )
-        convert_fmt(kwargs["logfile"])
-        return
+    # if kwargs.get("convert_csv", False):
+    #     if "logfile" not in kwargs:
+    #         raise ValueError(
+    #             "a log file needs to be specified when convert_csv is True"
+    #         )
+    #     convert_fmt(kwargs["logfile"])
+    #     return
 
     conn = Connection()
     if "proxy" in kwargs:
         conn.set_proxies({"http": kwargs["proxy"]})
 
     mode = kwargs["mode"]
+    exp_name = kwargs["exp_name"]
 
     # TODO: is it better to have everything explicitly set or just to pass kwargs as
     # experiment_info?
     experiment_info = {
-        "name": kwargs["exp_name"],
-        "mode": kwargs["mode"],
+        "name": exp_name,
+        "mode": mode,
         "n_trials": kwargs["n_trials"],
         "batch_size": main_parameters["batch_size"],
         "sequence_length": main_parameters["sequence_length"],
@@ -351,8 +352,8 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
     for key, value in report.items():
         print(f"\t- {key} -> {value}")
 
-    filename = kwargs["logfile"]
-    with open(filename, "w") as f:
-        print(f"Saved the Sigopt experiment report at {filename}")
+    report_path = os.path.join("outputs", f"{exp_name}_sigopt_report.json")
+    with open(report_path, "w") as f:
+        print(f"Saved the Sigopt experiment report at {report_path}")
         json.dump(report, f)
         f.write("\n")
