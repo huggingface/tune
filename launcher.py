@@ -434,7 +434,8 @@ def launch(args):
     set_multi_thread_and_allocator(args)
     args.additional_benchmark_args.append(f"num_instances={args.ninstances}")
     args.additional_benchmark_args.append(f"num_core_per_instance={args.ncore_per_instance}")
-    args.additional_benchmark_args.append(f"experiment_id={os.environ['EXPERIMENT_ID']}")
+    experiment_id_str = os.environ['EXPERIMENT_ID'] if args.experiment_id is None else args.experiment_id
+    args.additional_benchmark_args.append(f"experiment_id={experiment_id_str}")
 
     for i in range(args.ninstances):
         cmd, instance_specific_args = [], []
@@ -676,6 +677,8 @@ def add_multi_instance_params(parser):
     group = parser.add_argument_group("Multi-instance Parameters")
 
     # multi-instance control
+    group.add_argument("--experiment_id", metavar='\b', default=None, type=str,
+                       help="Specify the experiment id to store the result.")
     group.add_argument("--ncore_per_instance", metavar='\b', default=-1, type=int,
                        help="Cores per instance")
     group.add_argument("--ninstances", metavar='\b', default=-1, type=int,
