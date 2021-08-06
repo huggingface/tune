@@ -22,6 +22,8 @@ from binascii import hexlify
 from collections import OrderedDict
 from random import getrandbits
 
+import pandas as pd
+
 from sigopt import Connection
 
 from utils.cpu import CPUinfo
@@ -258,6 +260,11 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
             # here total_num_cores // nb_instances is used as making a choice is no longer possible.
             assignments_dict["nb_cores"] = nb_cores[-1]
 
+            print(
+                f"Setting the number of cores to {assignments_dict['nb_cores']} for the experiment from the tuned
+                f"number of instances (Sigopt assignment is {assignments_dict['instances']})"
+            )
+
         if "instances" not in assignments_dict:
             default_nb_instances = generate_nb_instances_candidates(
                 main_parameters["batch_size"],
@@ -267,6 +274,11 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
             )
             nb_instances = launcher_parameters.get("instances", default_nb_instances)
             assignments_dict["instances"] = nb_instances
+
+            print(
+                f"Setting the number of instances to {assignments_dict['instances']} for the experiment from the tuned
+                f"number of cores (Sigopt assignment is {assignments_dict['nb_cores']})"
+            )
 
         exp_result = launch_and_wait(
             launcher_parameters=assignments_dict,
@@ -357,3 +369,8 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
         print(f"Saved the Sigopt experiment report at {report_path}")
         json.dump(report, f)
         f.write("\n")
+
+    report_path = os.path.join("outputs", f"{exp_name}_sigopt_report.csv")
+    df = pd.DataFrame.from_dict(report)
+    df.to_csv(report_path)
+    print(f"And as a CSV file at {report_path}")

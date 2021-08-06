@@ -318,3 +318,8 @@ def optuna_tune(launcher_parameters=None, main_parameters=None, **kwargs):
     with open(report_path, "w") as f:
         print(f"Saved the Optuna experiment report at {report_path}")
         json.dump(report, f)
+
+    report_path = os.path.join("outputs", f"{exp_name}_optuna_report.csv")
+    df = pd.DataFrame.from_dict(report)
+    df.to_csv(report_path)
+    print(f"And as a CSV file at {report_path}")
