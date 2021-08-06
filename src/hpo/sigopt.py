@@ -262,7 +262,7 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
 
             print(
                 f"Setting the number of cores to {assignments_dict['nb_cores']} for the experiment from the tuned"
-                f"number of instances (Sigopt assignment is {assignments_dict['instances']})"
+                f" number of instances (Sigopt assignment is {assignments_dict['instances']})"
             )
 
         if "instances" not in assignments_dict:
@@ -277,7 +277,7 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
 
             print(
                 f"Setting the number of instances to {assignments_dict['instances']} for the experiment from the tuned"
-                f"number of cores (Sigopt assignment is {assignments_dict['nb_cores']})"
+                f" number of cores (Sigopt assignment is {assignments_dict['nb_cores']})"
             )
 
         exp_result = launch_and_wait(
