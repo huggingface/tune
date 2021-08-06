@@ -10,7 +10,7 @@ among the most used:
 - PyTorch (Eager mode)
 - TorchScript (Static Graph mode)
 - TensorFlow 2 (Eager mode)
-- TensorFlow 2 XLA (Static Graph mode)
+- TensorFlow 2 Graph (Static Graph mode)
 - ONNX Runtime for Inference (Static Graph mode + Graph Optimizations)
 
 The repository is divided into 2 principal sections:
@@ -83,9 +83,9 @@ This value is `False` when using backend `pytorch` and `True` when using backend
 
 ### TensorFlow
 
-- `use_xla` Boolean indicating if the model should be wrapped around `tf.function` in order to compile the underlying graph through XLA.
+- `use_xla` Boolean indicating if the model should be wrapped around `tf.function(jit_compile=True)` in order to compile the underlying graph through XLA.
 
-This value is `False` when using backend `tensorflow` and `True` when using backend `xla`
+This value is `False` when using backend `tensorflow_graph` and can be enabled by config file or cmd line.
 
 
 ### ONNX Runtime (ORT)

@@ -266,7 +266,9 @@ def add_lib_preload(lib_type=None):
 
     lib_find = False
     for lib_path in library_paths:
-        library_file = lib_path + "lib" + lib_type + ".so*"
+        if not lib_path.endswith("/"):
+            lib_path += "/"
+        library_file = lib_path + "lib" + lib_type + ".so"
         matches = glob.glob(library_file)
         if len(matches) > 0:
             if "LD_PRELOAD" in os.environ:
@@ -334,6 +336,9 @@ def set_memory_allocator(args):
         if find_je:
             LOGGER.info("Use JeMalloc memory allocator")
             args.additional_benchmark_args.append("+malloc=jemalloc")
+            if "MALLOC_CONF" not in os.environ:
+                os.environ["MALLOC_CONF"] = args.malloc_conf
+            LOGGER.info("MALLOC_CONF={}".format(os.environ["MALLOC_CONF"]))
             return
 
         LOGGER.warning(
@@ -409,6 +414,7 @@ def set_multi_thread_and_allocator(args):
         f"backend.num_threads={os.environ['OMP_NUM_THREADS']}"
     )
     args.additional_benchmark_args.append(f"+openmp.backend={omp_backend}")
+
     args.additional_benchmark_args.append(
         f"+openmp.num_threads={os.environ['OMP_NUM_THREADS']}"
     )
@@ -421,6 +427,7 @@ def set_multi_thread_and_allocator(args):
     args.additional_benchmark_args.append(
         f"+openmp.blocktime={os.environ['KMP_BLOCKTIME']}"
     )
+    args.additional_benchmark_args.append(f"use_huge_page={os.environ['THP_STATUS']}")
 
 
 def launch(args):
@@ -672,7 +679,7 @@ def mpi_dist_launch(args):
         os.environ["CCL_ATL_TRANSPORT"] = "ofi"
 
     if args.enable_iomp:
-        find_iomp = add_lib_preload(lib_type="iomp")
+        find_iomp = add_lib_preload(lib_type="iomp5")
         if not find_iomp:
             LOGGER.warning(
                 "Unable to find the {} library file lib{}.so in $CONDA_PREFIX/lib or  /.local/lib/"

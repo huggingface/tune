@@ -39,7 +39,7 @@ cs.store(name="benchmark", node=BenchmarkConfig)
 cs.store(group="backend", name="pytorch_backend", node=PyTorchConfig)
 cs.store(group="backend", name="torchscript_backend", node=PyTorchConfig)
 cs.store(group="backend", name="tensorflow_backend", node=TensorflowConfig)
-cs.store(group="backend", name="xla_backend", node=TensorflowConfig)
+cs.store(group="backend", name="tensorflow_graph_backend", node=TensorflowConfig)
 cs.store(group="backend", name="ort_backend", node=OnnxRuntimeConfig)
 
 
