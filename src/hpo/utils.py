@@ -73,7 +73,7 @@ def generate_nb_cores_candidates(
     """
     Returns a list of candidates for the number of cores (per instance).
     If the number of instances is known (nb_instances > 0), then a good candidate is one in
-    [1, total_num_cores // nb_instances + 1] where total_num_cores = cpu_info.physical_core_nums,
+    [1, total_num_cores // nb_instances] where total_num_cores = cpu_info.physical_core_nums,
     else the assumption made is that the number of instances will be
     total_num_cores // selected_candidate, so in that case a candidate must satisfy:
         1. candidate divides total_num_cores
