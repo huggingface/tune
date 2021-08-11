@@ -352,8 +352,8 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
 
     report = OrderedDict(sorted(report.items()))
 
-    report["metrics_name"] = best_assignment.values[0].name
-    report["metrics_value"] = best_assignment.values[0].value
+    for metric in best_assignment.values:
+        report[metric.name] = metric.value
     report["batch_size"] = main_parameters["batch_size"]
     report["sequence_length"] = main_parameters["sequence_length"]
     report["mode"] = kwargs["mode"].value
