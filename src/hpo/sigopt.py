@@ -164,7 +164,6 @@ def create_experiment(
                 "type": "int",
             }
 
-    print(experiment_meta["parameters"])
     experiment_meta["parameters"] = list(experiment_meta["parameters"].values())
 
     experiment = conn.experiments().create(**experiment_meta)

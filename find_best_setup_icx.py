@@ -23,7 +23,7 @@ from hpo.utils import TuningMode
 
 BACKEND_SET_CHOICES = {"pt", "tf", "pcl", "bert_cpp"}
 pt_experiment_backends = ["pytorch", "torchscript"]
-tf_experiment_backends = ["tensorflow", "xla"]
+tf_experiment_backends = ["tensorflow", "tensorflow_graph"]
 pcl_experiment_backends = ["pcl", "pytorch", "torchscript"]
 bert_cpp_experiment_backends = ["fused", "pytorch", "torchscript"]
 
