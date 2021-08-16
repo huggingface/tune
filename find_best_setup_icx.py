@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import itertools
+from pathlib import Path
 
 from argparse import ArgumentParser
 from hpo.optuna import optuna_tune
@@ -529,23 +530,29 @@ if __name__ == "__main__":
                 print("-" * 40)
                 print("\n")
 
-                optuna_tune(
-                    launcher_parameters=launcher_parameters,
-                    main_parameters=main_parameters,
-                    exp_name=exp_name,
-                    mode=args.mode,
-                    n_trials=args.n_trials,
-                )
+                if Path(f"outputs/{exp_name}_optuna_report.json").exists():
+                    print("Experiment was already tuned, skipping.")
+                else:
+                    optuna_tune(
+                        launcher_parameters=launcher_parameters,
+                        main_parameters=main_parameters,
+                        exp_name=exp_name,
+                        mode=args.mode,
+                        n_trials=args.n_trials,
+                    )
 
                 print("\nTuning with Sigopt")
                 print("-" * 40)
                 print("\n")
 
-                sigopt_tune(
-                    launcher_parameters=launcher_parameters,
-                    main_parameters=main_parameters,
-                    exp_name=exp_name,
-                    mode=args.mode,
-                    n_trials=args.n_trials,
-                    project=args.project,
-                )
+                if Path(f"outputs/{exp_name}_sigopt_report.json").exists():
+                    print("Experiment was already tuned, skipping.")
+                else:
+                    sigopt_tune(
+                        launcher_parameters=launcher_parameters,
+                        main_parameters=main_parameters,
+                        exp_name=exp_name,
+                        mode=args.mode,
+                        n_trials=args.n_trials,
+                        project=args.project,
+                    )
