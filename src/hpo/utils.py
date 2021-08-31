@@ -5,7 +5,7 @@ import subprocess
 import sys
 from binascii import hexlify
 from enum import Enum
-from functools import wraps
+from functools import wraps, reduce
 from random import getrandbits
 from typing import Any, Dict, List, Tuple, NamedTuple
 
@@ -66,6 +66,11 @@ def generate_nb_instances_candidates(
             instances.append(i)
     return instances
 
+
+# def factors(n, bs, mode):
+#     f = sorted(list(reduce(list.__add__, ([i, n // i] for i in range(1, int(n ** 0.5) + 1) if n % i == 0))))
+#     return [str(i) for i in f if bs * i >= n and bs % (n / i) == 0] if mode == TuningMode.LATENCY else [str(i) for i in f]
+#
 
 def generate_nb_cores_candidates(
     batch_size, mode, cpu_info, nb_instances=-1

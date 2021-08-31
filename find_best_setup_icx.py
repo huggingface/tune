@@ -42,7 +42,8 @@ launcher_prefix = "launcher.py --multi_instance"
 oob_command_prefix = "PYTHONPATH=src python3 -- src/main.py --multirun"
 launcher_command_prefix = "PYTHONPATH=src python3 launcher.py --multi_instance"
 kmp_affinity_default = "verbose,granularity=fine,compact,1,0"
-backends = pt_experiment_backends
+backends = pt_experiment_backends + ["tensorflow_graph"]
+backends = ["tensorflow_graph"]
 backend_specific_knobs = ""
 tf_specific_knobs = "backend.num_interops_threads=1"
 enable_iomp_default = [True, False]
@@ -512,6 +513,36 @@ if __name__ == "__main__":
             backend_is_fixed = len(backend) == 1
 
             product = itertools.product(batch_size, sequence_length, backend)
+            product = list(product)
+
+            for (bs, seqlen, back) in product:
+                exp_name = f"{experiment['name']}"
+                if not batch_size_is_fixed:
+                    exp_name = f"{exp_name}_bs{bs}"
+                if not sequence_length_is_fixed:
+                    exp_name = f"{exp_name}_seqlen{seqlen}"
+                if not backend_is_fixed:
+                    exp_name = f"{exp_name}_{back}"
+
+                main_parameters["batch_size"] = bs
+                main_parameters["sequence_length"] = seqlen
+                main_parameters["backend"] = back
+
+                print("\nTuning with Sigopt")
+                print("-" * 40)
+                print("\n")
+
+                if Path(f"outputs/{exp_name}_sigopt_report.json").exists():
+                    print(f"Experiment {exp_name} was already tuned with Sigopt, skipping.")
+                else:
+                    sigopt_tune(
+                        launcher_parameters=launcher_parameters,
+                        main_parameters=main_parameters,
+                        exp_name=exp_name,
+                        mode=args.mode,
+                        n_trials=args.n_trials,
+                        project=args.project,
+                    )
 
             for (bs, seqlen, back) in product:
                 exp_name = f"{experiment['name']}"
@@ -531,7 +562,7 @@ if __name__ == "__main__":
                 print("\n")
 
                 if Path(f"outputs/{exp_name}_optuna_report.json").exists():
-                    print("Experiment was already tuned, skipping.")
+                    print(f"Experiment {exp_name} was already tuned with Optuna, skipping.")
                 else:
                     optuna_tune(
                         launcher_parameters=launcher_parameters,
@@ -539,20 +570,4 @@ if __name__ == "__main__":
                         exp_name=exp_name,
                         mode=args.mode,
                         n_trials=args.n_trials,
-                    )
-
-                print("\nTuning with Sigopt")
-                print("-" * 40)
-                print("\n")
-
-                if Path(f"outputs/{exp_name}_sigopt_report.json").exists():
-                    print("Experiment was already tuned, skipping.")
-                else:
-                    sigopt_tune(
-                        launcher_parameters=launcher_parameters,
-                        main_parameters=main_parameters,
-                        exp_name=exp_name,
-                        mode=args.mode,
-                        n_trials=args.n_trials,
-                        project=args.project,
                     )
