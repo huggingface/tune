@@ -163,12 +163,6 @@ def create_experiment(
                 "name": "nb_cores",
                 "type": "int",
             }
-    else:
-        experiment_meta["parameters"]["nb_cores"] = {
-            "bounds": {"min": -10, "max": -1},
-            "name": "nb_cores",
-            "type": "int",
-        }
 
     experiment_meta["parameters"] = list(experiment_meta["parameters"].values())
 
@@ -253,7 +247,7 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
             ]
 
         # Setting the number of cores and instances if this was not set before.
-        if assignments_dict.get("nb_cores", -1) < 0:
+        if "nb_cores" not in assignments_dict:
             _, nb_cores = generate_nb_cores_candidates(
                 main_parameters["batch_size"],
                 mode,
@@ -328,7 +322,7 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
                 )
             )
             updated_assignments = {
-                k: v for k, v in assignments_dict.items() if k in (suggestion.assignments or k == "nb_cores")
+                k: v for k, v in assignments_dict.items() if k in suggestion.assignments
             }
             if idx2nb_instances is not None or idx2nb_cores is not None:
                 conn.experiments(experiment.id).observations(observation.id).update(
