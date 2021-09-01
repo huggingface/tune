@@ -172,8 +172,10 @@ def launch_and_wait(
     print(f"Running command: {' '.join(cmd)}")
 
     process = subprocess.Popen(cmd, cwd=os.curdir, stdout=subprocess.PIPE)
-    process.wait()
-    output = process.stdout.read().decode("utf-8")
+    # process.wait()
+    # output = process.stdout.read().decode("utf-8")
+    stdout, _ = process.communicate()
+    output = stdout.decode("utf-8")
 
     # Extract metrics
     latency_matchs = re.finditer(RE_LATENCY, output)
