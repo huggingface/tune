@@ -134,7 +134,10 @@ def create_experiment(
     idx2nb_instances = None
     idx2nb_cores = None
     if "instances" in specified_candidates:
-        idx2nb_instances = specified_candidates["instances"]
+        allowed_values = generate_nb_instances_candidates(batch_size, mode, cpu_info)
+        idx2nb_instances = [x for x in specified_candidates["instances"] if x in allowed_values]
+        if not idx2nb_instances:
+            idx2nb_instances = [1]
         experiment_meta["parameters"]["instances"] = {
             "bounds": {"min": 1, "max": len(idx2nb_instances)},
             "name": "instances",

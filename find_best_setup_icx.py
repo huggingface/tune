@@ -420,14 +420,14 @@ core_count_scaling_experiments = [
     {
         "name": "ccs_experiments",
         "launcher_knobs": {
-            "ninstances": [1, 2, 4, 5, 10, 20],
+            "ninstances": [1, 2, 4, 5, 10, 20, 40, 80],
             "kmp_affinity": kmp_affinity_default,
             "enable_iomp": enable_iomp_default,
             "malloc": malloc_default,
         },
         "main_knobs": {
             "backend": backends,
-            "batch_size": [4, 8, 16, 32],
+            "batch_size": [4, 8, 16, 32, 40, 80],
             "sequence_length": sequence_length_all,
             "benchmark_duration": benchmark_duration_default,
             "warmup_runs": warmup_runs_default,
