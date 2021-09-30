@@ -249,7 +249,8 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
     }
 
     if experiment_info["batch_size"] == 1:
-        experiment_info["mode"] = TuningMode.LATENCY
+        mode = TuningMode.LATENCY
+        experiment_info["mode"] = mode
 
     project_name = kwargs.get("project", None)
     if project_name:

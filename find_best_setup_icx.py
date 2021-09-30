@@ -44,7 +44,7 @@ oob_command_prefix = "PYTHONPATH=src python3 -- src/main.py --multirun"
 launcher_command_prefix = "PYTHONPATH=src python3 launcher.py --multi_instance"
 kmp_affinity_default = "verbose,granularity=fine,compact,1,0"
 # backends = pt_experiment_backends + ["tensorflow_graph"]
-backends = ["torchcript", "tensorflow_graph"]
+backends = ["torchscript", "tensorflow_graph"]
 backend_specific_knobs = ""
 tf_specific_knobs = "backend.num_interops_threads=1"
 enable_iomp_default = [True, False]
