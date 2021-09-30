@@ -31,7 +31,8 @@ bert_cpp_experiment_backends = ["fused", "pytorch", "torchscript"]
 # Default command settings
 
 batch_size_all = [1, 4, 8, 16, 32]
-sequence_length_all = [20, 32, 128, 384, 512]
+# sequence_length_all = [20, 32, 128, 384, 512]
+sequence_length_all = [32, 128, 384, 512]
 benchmark_duration_default = [60]
 benchmark_duration_long = [120]
 benchmark_duration_short = [10]
@@ -43,7 +44,6 @@ oob_command_prefix = "PYTHONPATH=src python3 -- src/main.py --multirun"
 launcher_command_prefix = "PYTHONPATH=src python3 launcher.py --multi_instance"
 kmp_affinity_default = "verbose,granularity=fine,compact,1,0"
 backends = pt_experiment_backends + ["tensorflow_graph"]
-backends = ["tensorflow_graph"]
 backend_specific_knobs = ""
 tf_specific_knobs = "backend.num_interops_threads=1"
 enable_iomp_default = [True, False]
@@ -117,7 +117,9 @@ bs1_experiments = [
     {
         "name": "bs1_experiments",
         "launcher_knobs": {
-            "ninstances": [1, 2, 4, 5, 10, 20, 40, 80],
+            # "ninstances": [1, 2, 4, 5, 10, 20, 40, 80],
+            "ninstances": [1],
+            "nb_cores": [1, 2, 4, 8, 16, 40, 80],
             "kmp_affinity": kmp_affinity_default,
             "enable_iomp": enable_iomp_default,
             "malloc": malloc_default,
@@ -544,30 +546,30 @@ if __name__ == "__main__":
                         project=args.project,
                     )
 
-            for (bs, seqlen, back) in product:
-                exp_name = f"{experiment['name']}"
-                if not batch_size_is_fixed:
-                    exp_name = f"{exp_name}_bs{bs}"
-                if not sequence_length_is_fixed:
-                    exp_name = f"{exp_name}_seqlen{seqlen}"
-                if not backend_is_fixed:
-                    exp_name = f"{exp_name}_{back}"
+            # for (bs, seqlen, back) in product:
+            #     exp_name = f"{experiment['name']}"
+            #     if not batch_size_is_fixed:
+            #         exp_name = f"{exp_name}_bs{bs}"
+            #     if not sequence_length_is_fixed:
+            #         exp_name = f"{exp_name}_seqlen{seqlen}"
+            #     if not backend_is_fixed:
+            #         exp_name = f"{exp_name}_{back}"
 
-                main_parameters["batch_size"] = bs
-                main_parameters["sequence_length"] = seqlen
-                main_parameters["backend"] = back
+            #     main_parameters["batch_size"] = bs
+            #     main_parameters["sequence_length"] = seqlen
+            #     main_parameters["backend"] = back
 
-                print("\nTuning with Optuna")
-                print("-" * 40)
-                print("\n")
+            #     print("\nTuning with Optuna")
+            #     print("-" * 40)
+            #     print("\n")
 
-                if Path(f"outputs/{exp_name}_optuna_report.json").exists():
-                    print(f"Experiment {exp_name} was already tuned with Optuna, skipping.")
-                else:
-                    optuna_tune(
-                        launcher_parameters=launcher_parameters,
-                        main_parameters=main_parameters,
-                        exp_name=exp_name,
-                        mode=args.mode,
-                        n_trials=args.n_trials,
-                    )
+            #     if Path(f"outputs/{exp_name}_optuna_report.json").exists():
+            #         print(f"Experiment {exp_name} was already tuned with Optuna, skipping.")
+            #     else:
+            #         optuna_tune(
+            #             launcher_parameters=launcher_parameters,
+            #             main_parameters=main_parameters,
+            #             exp_name=exp_name,
+            #             mode=args.mode,
+            #             n_trials=args.n_trials,
+            #         )

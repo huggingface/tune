@@ -101,12 +101,14 @@ def create_experiment(
                 "type": "categorical",
             },
             "kmp_blocktime": {
-                "bounds": {"min": 0, "max": 1},
+                # "bounds": {"min": 0, "max": 1},
+                # "name": "kmp_blocktime",
+                # "type": "int",
+                "categorical_values": ["0", "1"],
                 "name": "kmp_blocktime",
-                "type": "int",
+                "type": "categorical"
             },
         },
-        "observation_budget": experiment_info["n_trials"],
         "metrics": metrics[mode],
         "parallel_bandwidth": 1,
     }
@@ -131,27 +133,47 @@ def create_experiment(
             "type": "categorical",
         }
 
+    metadata = {}
     idx2nb_instances = None
     idx2nb_cores = None
     if "instances" in specified_candidates:
-        allowed_values = generate_nb_instances_candidates(batch_size, mode, cpu_info)
-        idx2nb_instances = [x for x in specified_candidates["instances"] if x in allowed_values]
-        if not idx2nb_instances:
-            idx2nb_instances = [1]
-        experiment_meta["parameters"]["instances"] = {
-            "bounds": {"min": 1, "max": len(idx2nb_instances)},
-            "name": "instances",
-            "type": "int",
-        }
+        if len(specified_candidates["instances"]) == 1:
+            metadata["instances"] = specified_candidates["instances"][0]
+        else:
+            allowed_values = generate_nb_instances_candidates(batch_size, mode, cpu_info)
+            idx2nb_instances = [x for x in specified_candidates["instances"] if x in allowed_values]
+            if not idx2nb_instances:
+                metadata["instances"] = [1]
+            elif len(idx2nb_instances) == 1:
+                metadata["instances"] = idx2nb_cores[0]
+            else:
+                experiment_meta["parameters"]["instances"] = {
+                    "bounds": {"min": 1, "max": len(idx2nb_instances)},
+                    "name": "instances",
+                    "type": "int",
+                }
 
     # Because we cannot choose both the number of instances and the number of cores with Sigopt,
     # we set the number of cores as a parameter to tune if the number of instances was not set to
     # be tunable.
-    if "instances" not in experiment_meta["parameters"]:
-        nb_instances = specified_parameters.get("instances", -1)
+    if "nb_cores" in specified_candidates:
+        idx2nb_cores = specified_candidates["nb_cores"]
+        experiment_meta["parameters"]["nb_cores"] = {
+            "bounds": {"min": 1, "max": len(idx2nb_cores)},
+            "name": "nb_cores",
+            "type": "int",
+        }
+
+    if "nb_cores" not in specified_candidates and "instances" not in experiment_meta["parameters"]:
+        nb_instances = metadata.get("instances", -1)
+        if nb_instances < 0:
+            nb_instances = specified_parameters.get("instances", -1)
         candidates_type, nb_cores = generate_nb_cores_candidates(
             batch_size, mode, cpu_info, nb_instances=nb_instances
         )
+        if candidates_type == "value":
+            metadata["nb_cores"] = nb_cores
+
         if candidates_type == "range":
             experiment_meta["parameters"]["nb_cores"] = {
                 "bounds": {"min": nb_cores[0], "max": nb_cores[1]},
@@ -167,6 +189,11 @@ def create_experiment(
                 "type": "int",
             }
 
+    experiment_meta["metadata"] = metadata
+    if "instances" in metadata and "nb_cores" in metadata:
+        experiment_meta["observation_budget"] = 20
+    else:
+        experiment_meta["observation_budget"] = experiment_info["n_trials"]
     experiment_meta["parameters"] = list(experiment_meta["parameters"].values())
 
     experiment = conn.experiments().create(**experiment_meta)
@@ -185,7 +212,7 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
 
     launcher_parameters = copy.deepcopy(launcher_parameters)
     for k, v in launcher_parameters.items():
-        if isinstance(v, list) and len(v) == 1:
+        if k != "instances" and isinstance(v, list) and len(v) == 1:
             launcher_parameters[k] = v[0]
     manually_specified_candidates = {
         k: v for k, v in launcher_parameters.items() if isinstance(v, list)
@@ -251,36 +278,36 @@ def sigopt_tune(launcher_parameters=None, main_parameters=None, **kwargs):
 
         # Setting the number of cores and instances if this was not set before.
         if "nb_cores" not in assignments_dict:
-            _, nb_cores = generate_nb_cores_candidates(
-                main_parameters["batch_size"],
-                mode,
-                cpu_info,
-                nb_instances=int(assignments_dict["instances"]),
-            )
+            nb_cores = experiment.metadata.get("nb_cores", -1)
+            if nb_cores < 0:
+                _, nb_cores = generate_nb_cores_candidates(
+                    main_parameters["batch_size"],
+                    mode,
+                    cpu_info,
+                    nb_instances=int(assignments_dict["instances"]),
+                )
 
-            # With Optuna, a value is selected between 1 and total_num_cores // nb_instances but
-            # here total_num_cores // nb_instances is used as making a choice is no longer possible.
-            assignments_dict["nb_cores"] = nb_cores[-1]
-
-            print(
-                f"Setting the number of cores to {assignments_dict['nb_cores']} for the experiment from the tuned"
-                f" number of instances (Sigopt assignment is {assignments_dict['instances']})"
-            )
+                print(
+                    f"Setting the number of cores to {nb_cores} for the experiment from the tuned"
+                    f" number of instances (Sigopt assignment is {assignments_dict['instances']})"
+                )
+            assignments_dict["nb_cores"] = nb_cores
 
         if "instances" not in assignments_dict:
-            default_nb_instances = generate_nb_instances_candidates(
-                main_parameters["batch_size"],
-                mode,
-                cpu_info,
-                nb_cores=int(assignments_dict["nb_cores"]),
-            )
-            nb_instances = launcher_parameters.get("instances", default_nb_instances)
+            nb_instances = experiment.metadata.get("instances", -1)
+            if nb_instances < 0:
+                default_nb_instances = generate_nb_instances_candidates(
+                    main_parameters["batch_size"],
+                    mode,
+                    cpu_info,
+                    nb_cores=int(assignments_dict["nb_cores"]),
+                )
+                nb_instances = launcher_parameters.get("instances", default_nb_instances)
+                print(
+                    f"Setting the number of instances to {nb_instances} for the experiment from the tuned"
+                    f" number of cores (Sigopt assignment is {assignments_dict['nb_cores']})"
+                )
             assignments_dict["instances"] = nb_instances
-
-            print(
-                f"Setting the number of instances to {assignments_dict['instances']} for the experiment from the tuned"
-                f" number of cores (Sigopt assignment is {assignments_dict['nb_cores']})"
-            )
 
         exp_result = launch_and_wait(
             launcher_parameters=assignments_dict,

@@ -86,7 +86,7 @@ def generate_nb_cores_candidates(
     """
     total_num_cores = cpu_info.physical_core_nums
     if nb_instances > 0:
-        return "range", [1, total_num_cores // nb_instances]
+        return "value", total_num_cores // nb_instances
     elif mode is TuningMode.LATENCY:
         return "range", [1, total_num_cores]
     else:
