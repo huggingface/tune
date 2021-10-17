@@ -77,7 +77,6 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
         if output_ov.exists():
             return model_path
 
-        #onnx_convert("pt", config.model, output, opset=opset)
         onnx_output = str(output).split('.onnx')[0]
         onnx_cmd = f"python -m transformers.onnx \
             --model {config.model} \
@@ -86,7 +85,6 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
 
         results = subprocess.check_output(onnx_cmd, shell=True)
         
-
         # Setup model optimizer command ...
         model_fpath = Path(onnx_output + '/' + 'model.onnx')
         ir_data_type = "FP32"
@@ -97,19 +95,11 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
         decoder_attention_mask = 'decoder_attention_mask[{} {}]'.format(config.batch_size, 1)
 
         if config.model in {"gpt2", "facebook/bart-large-cnn", "roberta-base", "xlnet-base-cased", "prophetnet-large-uncased", "distilbert-base-uncased"}:
-            print('Converting models without token_type_ids inputs')
             input_names = '"' + input_ids + ',' + attention_mask + '"'
         elif config.model in {"t5-small"}:
             input_names = '"' + input_ids + ',' + attention_mask + ',' + decoder_input_ids + ',' + decoder_attention_mask + '"'
         else:
             input_names = '"' + input_ids + ',' + token_type_ids + ',' + attention_mask + '"'
-
-
-        print('Input model:{}'.format(output))
-        print('Input:{}'.format(input_names))
-        print('data type:{}'.format(ir_data_type))
-        print('output dir:{}'.format(output_ov))
-        print('Model name:{}'.format(model))
 
         mo_cmd = f"mo_onnx.py \
             --input_model {model_fpath} \
@@ -130,7 +120,6 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
             model_name = model_name.split('/')[1]
         except:
             pass
-        print('In allocate, model name: {}'.format(model_name))
         onnx_model_path = Path(f"{ONNX_GRAPHS_FOLDER}/{config.model}.{getpid()}.onnx")
         ov_path = Path(f"{ONNX_GRAPHS_FOLDER}/{model_name}.{getpid()}.ov")
         ov_model_path = OpenVINORuntimeBackend.convert(config, model_name, onnx_model_path, ov_path, config.backend.opset)
@@ -163,8 +152,6 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
         model_xml = str(model_path) + '.xml'
         model_bin = str(model_path) + '.bin'
 
-        print('Model path:{}'.format(model_xml))
-
         # Run inference
         ie = IECore()
         net = ie.read_network(model=model_xml, weights=model_bin)
@@ -174,7 +161,6 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
         input_name = next(iter(net.inputs))
         output_name = next(iter(net.outputs))
 
-        #input_shape = net.inputs[input_name].shape
         dummy_inputs = self._get_dummy_inputs(
             batch_size=config.batch_size,
             seq_len=(config.sequence_length - self.tokenizer.num_special_tokens_to_add(pair=False))
@@ -187,10 +173,6 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
         )
 
         input_seqs = {k: v.astype("i8") for k, v in inputs.items()}
-        
-        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        print('Running the OV inference !!!!')
-        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         
         # Warmup
         outputs = []
