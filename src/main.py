@@ -23,6 +23,7 @@ from omegaconf import OmegaConf, DictConfig
 
 from backends import Backend, BackendConfig
 from backends.ort import OnnxRuntimeConfig
+from backends.ov import OpenVINORuntimeConfig
 from backends.pytorch import PyTorchConfig
 from backends.tensorflow import TensorflowConfig
 from config import BenchmarkConfig
@@ -32,6 +33,7 @@ from config import BenchmarkConfig
 OmegaConf.register_new_resolver("pytorch_version", PyTorchConfig.version)
 OmegaConf.register_new_resolver("tensorflow_version", TensorflowConfig.version)
 OmegaConf.register_new_resolver("ort_version", OnnxRuntimeConfig.version)
+OmegaConf.register_new_resolver("ov_version", OpenVINORuntimeConfig.version)
 
 # Register configurations
 cs = ConfigStore.instance()
@@ -41,6 +43,7 @@ cs.store(group="backend", name="torchscript_backend", node=PyTorchConfig)
 cs.store(group="backend", name="tensorflow_backend", node=TensorflowConfig)
 cs.store(group="backend", name="tensorflow_graph_backend", node=TensorflowConfig)
 cs.store(group="backend", name="ort_backend", node=OnnxRuntimeConfig)
+cs.store(group="backend", name="ov_backend", node=OpenVINORuntimeConfig)
 
 
 LOGGER = getLogger("benchmark")

@@ -9,3 +9,7 @@ rich
 transformers
 multiprocess
 sympy
+networkx
+defusedxml
+openvino
+coloredlogs

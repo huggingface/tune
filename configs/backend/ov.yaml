@@ -1,0 +1,7 @@
+_target_: backends.ov.OpenVINORuntimeBackend
+name: openvino
+version: ${ort_version:}
+opset: 12
+num_threads: null
+num_streams: 1
+num_interops_threads: null
