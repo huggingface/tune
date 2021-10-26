@@ -78,8 +78,15 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
             LOGGER.info(onnx_cmd_shell_output.decode('utf-8'))
             onnx_model_path = "".join([str(output_dir), os.sep, "model.onnx"])
         except Exception as e:
-            LOGGER.error(f"Unable to convert to ONNX: {e}")
-            sys.exit()
+            LOGGER.error(f"Unable to convert to ONNX using the transformers.onnx package: {e}")
+            LOGGER.info(f"Will convert to ONNX using Graph conversion method...")
+            try:
+                onnx_model_path = Path("".join([str(output_dir), os.sep, config.model, ".onnx"]))
+                onnx_convert(framework="pt", model=config.model, output=onnx_model_path, opset=opset)
+                LOGGER.info(f"Converted ONNX Model saved at {onnx_model_path}")
+            except Exception as e:
+                LOGGER.error(f"Unable to convert to ONNX: {e}")
+                sys.exit()
      
         # Setup model optimizer command ...
         ir_data_type = "FP32"
