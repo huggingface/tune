@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 import os
-
+import sys
 from dataclasses import dataclass
 from logging import getLogger
 from os import getpid
@@ -67,13 +67,19 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
         if output_dir.exists():
             return output_dir
         
-        # Convert PyTorch to ONNX and then to OpenVINO IR
         try:
-            onnx_model_path = Path(f"{output_dir}/{config.model}.onnx")
-            onnx_convert(framework="pt", model=config.model, output=onnx_model_path, opset=opset)
-            LOGGER.info(f"Converted ONNX Model saved at {onnx_model_path}")
+            LOGGER.info("Exporting PyTorch model to ONNX ...")
+            onnx_convert_cmd = f"{sys.executable} -m transformers.onnx \
+                                --model={config.model} --opset={opset} \
+                                {str(output_dir)}"
+            LOGGER.info(" ".join(onnx_convert_cmd.split()))
+        
+            onnx_cmd_shell_output = subprocess.check_output(onnx_convert_cmd, shell=True)
+            LOGGER.info(onnx_cmd_shell_output.decode('utf-8'))
+            onnx_model_path = "".join([str(output_dir), os.sep, "model.onnx"])
         except Exception as e:
             LOGGER.error(f"Unable to convert to ONNX: {e}")
+            sys.exit()
      
         # Setup model optimizer command ...
         ir_data_type = "FP32"
@@ -110,6 +116,7 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
             LOGGER.info(f"Absolute Path of OpenVINO IR XML: {model_xml.absolute().as_posix()}")
         else:
             LOGGER.error(f"Unable to export ONNX model to OpenVINO IR...")
+            sys.exit()
             
         return output_dir
 
