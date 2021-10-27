@@ -64,5 +64,9 @@ python3 src/main.py model=distilbert-base-uncased sequence_length=32 backend=ov 
 ```
 ## Launcher Script Sample:
 ```
-PYTHONPATH=src python3 launcher.py --multi_instance --ninstances=1 --kmp_affinity=verbose,granularity=fine,compact,1,0 --enable_iomp --enable_tcmalloc -- src/main.py --multirun backend=ort,ov batch_size=1 sequence_length=20 benchmark_duration=20 warmup_runs=1 model=distilbert-base-uncased
+PYTHONPATH=src python3 launcher.py --multi_instance --ninstances=1 \
+--kmp_affinity=verbose,granularity=fine,compact,1,0 --enable_iomp \
+--enable_tcmalloc -- src/main.py --multirun backend=ort,ov \
+batch_size=1 sequence_length=20 benchmark_duration=20 \
+warmup_runs=1 model=distilbert-base-uncased
 ```
