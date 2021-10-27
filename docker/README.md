@@ -22,7 +22,7 @@ docker build -t $HFTUNE_DOCKER -f Dockerfile.ov .././
 ```
 
 #### OPTION 2
-Pull the docker container.
+Pull the docker container. Docker container is [pushed here](https://hub.docker.com/r/iotgedge/hftune-ov)
 ```
 docker pull $HFTUNE_DOCKER
 
