@@ -14,14 +14,14 @@ Setup Docker name. Use this name, so our development can be consistent.
 export $HFTUNE_DOCKER=iotgedge/hftune-ov
 ```
 
-## OPTION 1
+#### OPTION 1
 To build Docker container for HF Tune with OpenVINO backend:
 ```
 cd $TUNE_OV_DIR/tune-ov/docker
 docker build -t $HFTUNE_DOCKER -f Dockerfile.ov .././
 ```
 
-## OPTION 2
+#### OPTION 2
 Pull the docker container.
 ```
 docker pull $HFTUNE_DOCKER
@@ -31,13 +31,13 @@ docker pull $HFTUNE_DOCKER
 
 ### Step 2: Run the container
 
-## OPTION 1: With results persistant
+#### OPTION 1: With results persistant
 In this option, we will mount our git cloned directory, so the results will be saved in our local directory. Use this option when benchmarking.
 ```
 docker run --rm -v $TUNE_OV_DIR/tune-ov:/opt/tune -it $HFTUNE_DOCKER bash
 ```
 
-## OPTION 2: With results non-persistant. Use this for TESTING.
+#### OPTION 2: With results non-persistant. Use this for TESTING.
 In this options, the results will be lost once we kill the docker container. So, use this for testing purposes.
 
 ```
