@@ -11,7 +11,7 @@ git checkout ov-dev
 ### Step 1: Build Docker Container
 Setup Docker name. Use this name, so our development can be consistent.
 ```
-export $HFTUNE_DOCKER=iotgedge/hftune-ov
+export HFTUNE_DOCKER=iotgedge/hftune-ov
 ```
 
 #### OPTION 1
