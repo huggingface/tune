@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 import os
-
+import sys
 from dataclasses import dataclass
 from logging import getLogger
 from os import getpid
@@ -49,44 +49,46 @@ class OpenVINORuntimeConfig(BackendConfig):
         return BackendConfig.supported_keys().union({"api", "pin"})
 
 
-BACKEND_NAME = "openvino"
+BACKEND_NAME = "openvino-runtime"
 LOGGER = getLogger(BACKEND_NAME)
-ONNX_GRAPHS_FOLDER = "onnx_graphs"
-
+OPENVINO_IR_FOLDER = "openvino_irs"
 
 class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
 
-    def __init__(self, model: str, onnx_path: str, ov_path: str):
+    def __init__(self, model: str, ov_model_dir: str):
         super().__init__(model)
 
-        self.onnx_path = onnx_path
-        self.ov_path = ov_path
+        self.ov_model_dir = ov_model_dir
         self.optimized_onnx_graph = None
         self.config = {}
 
     @staticmethod
-    def convert(config: 'BenchmarkConfig', model: str, output: Path, output_ov: Path, opset: int = 12) -> Path:
-        if output.exists():
-            return output
-
-        model_path = Path(f"{ONNX_GRAPHS_FOLDER}/{model}.{getpid()}.ov/{model}")
-        # Get only the model name and not the company affiliation
-        model_xml = str(output_ov) + '/' + model + '.xml'
-        print('Model path:{}'.format(model_path))
-
-        if output_ov.exists():
-            return model_path
-
-        onnx_output = str(output).split('.onnx')[0]
-        onnx_cmd = f"python -m transformers.onnx \
-            --model {config.model} \
-            {Path(onnx_output)}"
-        print(onnx_cmd)
-
-        results = subprocess.check_output(onnx_cmd, shell=True)
+    def convert(config: 'BenchmarkConfig', output_dir: Path, opset: int = 12) -> Path:
+        if output_dir.exists():
+            return output_dir
         
+        try:
+            LOGGER.info("Exporting PyTorch model to ONNX ...")
+            onnx_convert_cmd = f"{sys.executable} -m transformers.onnx \
+                                --model={config.model} --opset={opset} \
+                                {str(output_dir)}"
+            LOGGER.info(" ".join(onnx_convert_cmd.split()))
+        
+            onnx_cmd_shell_output = subprocess.check_output(onnx_convert_cmd, shell=True)
+            LOGGER.info(onnx_cmd_shell_output.decode('utf-8'))
+            onnx_model_path = "".join([str(output_dir), os.sep, "model.onnx"])
+        except Exception as e:
+            LOGGER.error(f"Unable to convert to ONNX using the transformers.onnx package: {e}")
+            LOGGER.info(f"Will convert to ONNX using Graph conversion method...")
+            try:
+                onnx_model_path = Path("".join([str(output_dir), os.sep, config.model, ".onnx"]))
+                onnx_convert(framework="pt", model=config.model, output=onnx_model_path, opset=opset)
+                LOGGER.info(f"Converted ONNX Model saved at {onnx_model_path}")
+            except Exception as e:
+                LOGGER.error(f"Unable to convert to ONNX: {e}")
+                sys.exit()
+     
         # Setup model optimizer command ...
-        model_fpath = Path(onnx_output + '/' + 'model.onnx')
         ir_data_type = "FP32"
         input_ids = 'input_ids[{} {}]'.format(config.batch_size, config.sequence_length)
         attention_mask = 'attention_mask[{} {}]'.format(config.batch_size, config.sequence_length)
@@ -94,37 +96,43 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
         decoder_input_ids = 'decoder_input_ids[{} {}]'.format(config.batch_size, 1)
         decoder_attention_mask = 'decoder_attention_mask[{} {}]'.format(config.batch_size, 1)
 
-        if config.model in {"gpt2", "facebook/bart-large-cnn", "roberta-base", "xlnet-base-cased", "prophetnet-large-uncased", "distilbert-base-uncased"}:
+        if config.model in {"gpt2", "roberta-base", "xlnet-base-cased", "prophetnet-large-uncased", "distilbert-base-uncased"}:
             input_names = '"' + input_ids + ',' + attention_mask + '"'
         elif config.model in {"t5-small"}:
             input_names = '"' + input_ids + ',' + attention_mask + ',' + decoder_input_ids + ',' + decoder_attention_mask + '"'
         else:
             input_names = '"' + input_ids + ',' + token_type_ids + ',' + attention_mask + '"'
-
-        mo_cmd = f"mo_onnx.py \
-            --input_model {model_fpath} \
+ 
+        mo_cmd = f"mo \
+            --input_model {onnx_model_path} \
             --data_type {ir_data_type} \
             --input {input_names} \
-            --output_dir {output_ov}  \
-            --model_name {model}"
-        print(mo_cmd)
-
-        results = subprocess.check_output(mo_cmd, shell=True)
-
-        return model_path
+            --output_dir {output_dir}  \
+            --model_name {config.model}"
+        
+        
+        LOGGER.info("Exporting ONNX model to OpenVINO IR... This may take a few minutes.....")
+        LOGGER.info("\n--".join(mo_cmd.split("--")))
+        
+        mo_cmd_shell_output = subprocess.check_output(mo_cmd, shell=True)
+        LOGGER.info(mo_cmd_shell_output.decode('utf-8'))
+        
+        model_xml = Path("".join([str(output_dir), os.sep, config.model, ".xml"]))
+        if model_xml.exists():
+            LOGGER.info(f"OpenVINO IR generated successfully and saved at {model_xml}")
+            LOGGER.info(f"Absolute Path of OpenVINO IR XML: {model_xml.absolute().as_posix()}")
+        else:
+            LOGGER.error(f"Unable to export ONNX model to OpenVINO IR...")
+            sys.exit()
+            
+        return output_dir
 
     @classmethod
     def allocate(cls, config: 'BenchmarkConfig'):
-        model_name = config.model
-        try:
-            model_name = model_name.split('/')[1]
-        except:
-            pass
-        onnx_model_path = Path(f"{ONNX_GRAPHS_FOLDER}/{config.model}.{getpid()}.onnx")
-        ov_path = Path(f"{ONNX_GRAPHS_FOLDER}/{model_name}.{getpid()}.ov")
-        ov_model_path = OpenVINORuntimeBackend.convert(config, model_name, onnx_model_path, ov_path, config.backend.opset)
+        ov_model_dir = Path(f"{OPENVINO_IR_FOLDER}/{config.model}.ov.{getpid()}")
+        OpenVINORuntimeBackend.convert(config, ov_model_dir, config.backend.opset)
 
-        backend = OpenVINORuntimeBackend(config.model, onnx_model_path.absolute().as_posix(), ov_model_path.absolute().as_posix())
+        backend = OpenVINORuntimeBackend(config.model, ov_model_dir.absolute().as_posix())
         backend.configure(config.backend)
         return backend
 
@@ -148,9 +156,8 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
     def execute(self, config: 'BenchmarkConfig', is_reference: bool = False) -> Tuple[Benchmark, np.ndarray]:
         benchmark = Benchmark()
 
-        model_path = Path(self.ov_path)
-        model_xml = str(model_path) + '.xml'
-        model_bin = str(model_path) + '.bin'
+        model_xml = "".join([self.ov_model_dir, os.sep, config.model, ".xml"])
+        model_bin = "".join([self.ov_model_dir, os.sep, config.model, ".bin"])
 
         # Run inference
         ie = IECore()
@@ -194,14 +201,10 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
         return benchmark, np.stack(outputs)
 
     def clean(self, config: 'BenchmarkConfig'):
-        onnx_path = str(self.onnx_path).split('.onnx')[0]
-        model_fpath = Path(onnx_path + '/' + 'model.onnx')
-        model_path = Path(self.ov_path)
-        model_xml = Path(str(model_path) + '.xml')
-        model_bin = Path(str(model_path) + '.bin')
-        model_mapping = Path(str(model_path) + '.mapping')
+        ov_model_dir = Path(self.ov_model_dir)
 
-        model_fpath.unlink()
-        model_xml.unlink()
-        model_bin.unlink()
-        model_mapping.unlink()
+        if ov_model_dir.exists():
+            for file in ov_model_dir.iterdir():
+                LOGGER.debug(f"Cleaning OpenVINO model: {file}")
+                file.unlink()
+        

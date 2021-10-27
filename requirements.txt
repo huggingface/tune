@@ -11,5 +11,6 @@ multiprocess
 sympy
 networkx
 defusedxml
-openvino
+openvino-dev
+onnx
 coloredlogs
