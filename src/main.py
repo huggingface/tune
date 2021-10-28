@@ -126,7 +126,12 @@ def run(config: BenchmarkConfig) -> None:
     OmegaConf.save(config, ".hydra/config.yaml", resolve=True)
 
     df = benchmark.to_pandas()
-    df.to_csv("results.csv", index_label="id")
+    df['model'] = model_name
+    df['backend'] = config.backend.name
+    df['seq_len'] = config.sequence_length
+    df['batch_size'] = config.batch_size
+    df['num_threads'] = config.backend.num_threads
+    df.to_csv("{}-{}-results.csv".format(config.backend.name, model_name), index_label="id")
 
 
 if __name__ == '__main__':
