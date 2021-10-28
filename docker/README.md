@@ -49,11 +49,18 @@ docker run --privileged --rm -it $HFTUNE_DOCKER bash
 
 ### Step 3: Run the benchmarks
 
+#### OPTION 1: Run by loggin into the container
 ```
 # After running STEP 2, Now you will be inside the container.
 root@0a6d974d2ebd:/opt/tune#
 # Run sample Test
 python3 src/main.py model=bert-base-cased sequence_length=32 backend=ov device=cpu
+```
+
+#### OPTION 2: Run directly by passing the benchmark cmd
+
+```
+docker run --privileged --rm -it $HFTUNE_DOCKER python3 src/main.py model=bert-base-cased sequence_length=32 backend=ov device=cpu
 ```
 
 ### Other working models:
