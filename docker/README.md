@@ -33,17 +33,19 @@ docker pull $HFTUNE_DOCKER
 
 #### OPTION 1: With results persistant
 In this option, we will mount our git cloned directory, so the results will be saved in our local directory. Use this option when benchmarking.
+
 ```
-docker run --rm -v $TUNE_OV_DIR/tune-ov:/opt/tune -it $HFTUNE_DOCKER bash
+docker run --privileged --rm -v $TUNE_OV_DIR/tune-ov:/opt/tune -it $HFTUNE_DOCKER bash
 ```
 
 #### OPTION 2: With results non-persistant. Use this for TESTING.
 In this options, the results will be lost once we kill the docker container. So, use this for testing purposes.
 
 ```
-docker run --rm -it $HFTUNE_DOCKER bash
-
+docker run --privileged --rm -it $HFTUNE_DOCKER bash
 ```
+
+**NOTE:** `--privileged` flag is needed when you use the launcher script. See [sample below](#launcher-script-sample).
 
 ### Step 3: Run the benchmarks
 
