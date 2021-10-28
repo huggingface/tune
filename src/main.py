@@ -125,6 +125,12 @@ def run(config: BenchmarkConfig) -> None:
     # Save the resolved config
     OmegaConf.save(config, ".hydra/config.yaml", resolve=True)
 
+    model_name = config.model
+    try:
+        model_name = model_name.split('/')[1]
+    except:
+        pass
+
     df = benchmark.to_pandas()
     df['model'] = model_name
     df['backend'] = config.backend.name
