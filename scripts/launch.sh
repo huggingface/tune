@@ -3,7 +3,7 @@
 KMP_AFF=verbose,granularity=fine,compact,1,0
 BACKEND=pytorch,ov,tensorflow
 LOG_BK=pt-ov-tf
-BATCH_SIZE=1,2,4,8,16,32,128,256
+BATCH_SIZE=1,2,4,8
 SEQ_LEN=20,32,128,384,512
 BENCH_DURATION=20
 WARMUP_RUN=5
