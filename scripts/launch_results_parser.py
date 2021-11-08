@@ -36,7 +36,10 @@ def main():
     for curr_dir, list_dirs, file_names in os.walk(root_path):
         for f in file_names:
             curr_dir_split = os.path.normpath(curr_dir).split(os.path.sep)
-            instance = curr_dir_split[-3]
+            if len(curr_dir_split) == 7:
+                instance = curr_dir_split[-3]
+            else:
+                instance = curr_dir_split[-2]
             f_ext = os.path.splitext(f)[-1].lower()
             if f_ext == ".csv":
                fn = f.split('-')
