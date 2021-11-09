@@ -37,16 +37,18 @@ def main():
         return -1
         
     summary_df = pd.DataFrame()
-    for file in os.listdir(args.dirpath):
-        csv = os.path.isfile(os.path.join(args.dirpath, file))
-        print("file = ", file)
-        if csv:
-            df = pd.read_csv(os.path.join(args.dirpath, file))
+    for file_name in os.listdir(args.dirpath):
+        csv = os.path.isfile(os.path.join(args.dirpath, file_name))
+        print("file = ", file_name)
+        f_n = os.path.splitext(file_name)[0]
+        f_ext = os.path.splitext(file_name)[-1].lower()
+        if f_ext == ".csv" and csv:
+            df = pd.read_csv(os.path.join(args.dirpath, file_name))
             back_end = df.backend.unique()
             seq_len = df.seq_len.unique()
             batch_size = df.batch_size.unique()
             num_threads = df.num_threads.unique()
-            num_instance = df[' instance_id'].unique()
+            num_instance = df['instance_id'].unique()
             total_inst = len(num_instance)
             # Backend
             for backend in back_end:
@@ -62,14 +64,14 @@ def main():
                       for bs in batch_size:
                           summary_temp = pd.DataFrame()
                           df_bs = df_num_threads.loc[df_num_threads['batch_size'] == bs]
-                          df_bs = df_bs[[' instance_id', 'throughput', 'latency_mean (ms)', 'seq_len', 'batch_size', 'num_threads']]
-                          summary_temp = summary_temp.append(df_bs.groupby(' instance_id', as_index=False).sum())
-                          summary_temp = summary_temp.div(total_inst)
-                          summary_temp[' instance_id'] = total_inst
+                          df_bs = df_bs[['instance_id', 'throughput', 'latency_mean (ms)', 'seq_len', 'batch_size', 'num_threads']]
+                          #print("before group:summary_temp = ", df_bs)
+                          summary_temp = summary_temp.append(df_bs.groupby('instance_id', as_index=False).sum())
+                          #summary_temp = summary_temp.div(total_inst)
+                          summary_temp['model_name'] = f_n
                           summary_df = summary_df.append(summary_temp.assign(backend=backend))
     summary_df = summary_df.drop_duplicates()
     summary_df.to_csv("results_summary.csv", encoding='utf-8', index=False)
                 
 if __name__ == '__main__':
     sys.exit(main() or 0)
-    
