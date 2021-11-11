@@ -15,7 +15,7 @@ for MODEL in ${MODELS[@]}; do
     for N_INST in ${N_INSTS[@]}; do
         cmd_to_run="PYTHONPATH=src python3 launcher.py \
         --multi_instance \
-        --ninstances=$N_INSTS \
+        --ninstances=$N_INST \
         --kmp_affinity=$KMP_AFF \
         --enable_iomp \
         --enable_tcmalloc \
