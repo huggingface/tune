@@ -33,12 +33,9 @@ def plot_results(summary_df):
     plot_df = pd.DataFrame()
     for seq_len in SEQ_LENGTH:
         for idx, no_ins in enumerate(NUM_OF_INSTANCE):
-            #for bs in BATCH_SIZE:
                 df = summary_df.loc[(summary_df['batch_size'] == BATCH_SIZE[idx]) & (summary_df['seq_len'] == seq_len) & \
                                        (summary_df['instance_id'] == no_ins)]
               
-                #print("df.head()", df.head())
-                #sys.exit(0)
                 if not df.empty:
                    back_end = df.backend.unique()
                    #df_temp = pd.DataFrame()
@@ -55,14 +52,6 @@ def plot_results(summary_df):
 
                    df_.loc[df_.index.max() + 1, :] = [row.loc['seq_len'], row.loc['instance_id'], row.loc['batch_size'], \
                                                            row.loc['num_threads'], pt_latency, ov_latency]
-                        #df_.loc[:'inst'] = row.loc['instance_id']
-                        #df_.loc[:'bs'] = row.loc['batch_size']
-                        #df_.loc[:'threads'] = row.loc['num_threads']
-                        #df_.loc[:'pytorch'] = pt_latency
-                        #df_.loc[:'openvino'] = ov_latency
-                        #print("df_ ==", df_)
-                        #df_temp = df_temp.append(df_)
-                        #print("df_temp ==", df_temp)
                    plot_df = plot_df.append(df_)
     plot_df = plot_df.drop_duplicates()
     plot_df.to_csv("plot_results.csv", encoding='utf-8', index=False)
