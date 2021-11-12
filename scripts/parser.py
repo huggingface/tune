@@ -5,16 +5,11 @@ import pandas as pd
 import sys, os
 from argparse import ArgumentParser, SUPPRESS
 
-#NUM_OF_INSTANCE = [2, 4, 8]
-#SQE_LENGTH = [20, 32, 128, 384, 512]
-#BATCH_SIZE = [1, 2, 4, 8]
-#NUM_THREADS = [8, 16, 32, 64]
-#BACK_END = ["pytorch", "tensorflow", "openvino"]
-
 def build_argparser():
 
     usage = '''example:
-     python benchark_filter.py -input '/path/to/dir with benchmark CSV files' --dirresults <optional: path to output dir to save summary_results.csv>
+     python benchark_filter.py -input '/path/to/dir with benchmark CSV files' 
+          --dirresults <optional: path to output dir to save summary_results.csv>
      '''
     
     parser = ArgumentParser(prog='benchmark_filter.py',
@@ -41,8 +36,10 @@ def main():
         csv = os.path.isfile(os.path.join(args.dirpath, file_name))
         print("file = ", file_name)
         f_n = os.path.splitext(file_name)[0]
+        #print("f_n = ", f_n)
         f_ext = os.path.splitext(file_name)[-1].lower()
         if f_ext == ".csv" and csv:
+        #if csv:
             df = pd.read_csv(os.path.join(args.dirpath, file_name))
             back_end = df.backend.unique()
             seq_len = df.seq_len.unique()
@@ -50,6 +47,7 @@ def main():
             num_threads = df.num_threads.unique()
             num_instance = df['instance_id'].unique()
             total_inst = len(num_instance)
+            print("total_inst = ", total_inst)
             # Backend
             for backend in back_end:
               print("in loop backend", backend)
@@ -65,9 +63,8 @@ def main():
                           summary_temp = pd.DataFrame()
                           df_bs = df_num_threads.loc[df_num_threads['batch_size'] == bs]
                           df_bs = df_bs[['instance_id', 'throughput', 'latency_mean (ms)', 'seq_len', 'batch_size', 'num_threads']]
-                          #print("before group:summary_temp = ", df_bs)
-                          summary_temp = summary_temp.append(df_bs.groupby('instance_id', as_index=False).sum())
-                          #summary_temp = summary_temp.div(total_inst)
+                          df_bs_m = df_bs.mean(axis=0)
+                          summary_temp = summary_temp.append(df_bs_m, ignore_index=True)
                           summary_temp['model_name'] = f_n
                           summary_df = summary_df.append(summary_temp.assign(backend=backend))
     summary_df = summary_df.drop_duplicates()
