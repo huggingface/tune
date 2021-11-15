@@ -85,7 +85,7 @@ Expected output results_summary.csv
 
  Use "parser_with_selec_params.py" to arrange data to plot bar chart with above mentioned x-axis variables vs latency (msec) data.
  
- #### Arranging data (all combinations of attributes) for plotting
+#### Arranging data (all combinations of attributes) for plotting
  
  Use "parser_plot_with_all_params.py" to arrange data with all combination of params
  
