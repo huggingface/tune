@@ -15,12 +15,12 @@ BACK_END = ['pytorch', 'openvino', 'tensorflow']
 def build_argparser():
 
     usage = '''example:
-     python parser_plot_with_bs_vs_inst_filter.py -input '/path/to/dir with benchmark CSV files' 
+     python3 parser_with_selec_params.py -input '/path/to/dir with benchmark CSV files' 
           --dirresults <optional: path to output dir to save summary_results.csv>
      '''
     
-    parser = ArgumentParser(prog='parser_plot_with_bs_vs_inst_filter.py',
-                            description='Arrange benchmark results for plotting',
+    parser = ArgumentParser(prog='parser_with_selec_params.py',
+                            description='Arrange row/column results data for plotting',
                             epilog=usage)
     args = parser.add_argument_group('Options')
     args.add_argument('-input', '--dirpath', help='Benchmark csv files direcotry path', required=True)
