@@ -8,11 +8,11 @@ from argparse import ArgumentParser, SUPPRESS
 def build_argparser():
 
     usage = '''example:
-     python benchark_filter.py -input '/path/to/dir with benchmark CSV files' 
+     python parser.py -input '/path/to/dir with benchmark CSV files' 
           --dirresults <optional: path to output dir to save summary_results.csv>
      '''
     
-    parser = ArgumentParser(prog='benchmark_filter.py',
+    parser = ArgumentParser(prog='parser.py',
                             description='Filter benchmark results',
                             epilog=usage)
     args = parser.add_argument_group('Options')
