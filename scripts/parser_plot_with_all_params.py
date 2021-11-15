@@ -13,12 +13,12 @@ BACK_END = ['pytorch', 'openvino', 'tensorflow'] # plot_results logic only consi
 def build_argparser():
 
     usage = '''example:
-     python parser_plot_no_filter.py -input '/path/to/dir with benchmark CSV files' 
+     python3 parser_plot_with_all_params.py -input '/path/to/dir with benchmark CSV files' 
           --dirresults <optional: path to output dir to save summary_results.csv>
      '''
     
-    parser = ArgumentParser(prog='parser_plot_no_filter.py',
-                            description='Filter benchmark results with all bs and instance combination',
+    parser = ArgumentParser(prog='parser_plot_with_all_params.py',
+                            description='Arrange benchmark results for all parameter combination',
                             epilog=usage)
     args = parser.add_argument_group('Options')
     args.add_argument('-input', '--dirpath', help='Benchmark csv files direcotry path', required=True)
