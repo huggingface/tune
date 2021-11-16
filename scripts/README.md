@@ -15,8 +15,9 @@
   Export environment variables:
   
   ```bash
-  export ROBERTA_FILE=</path/to/lib/pythonx.x>/dist-packages/transformers/models/roberta/tokenization_roberta_fast.py
-  export GPT2_FILE=</path/to/lib/pythonx.x>dist-packages/transformers/models/gpt2/tokenization_gpt2_fast.py
+  PIP_LOC=`pip show transformers | grep Location | cut -d " " -f2`
+  export ROBERTA_FILE=$PIP_LOC/transformers/models/roberta/tokenization_roberta_fast.py
+  export GPT2_FILE=$PIP_LOC/transformers/models/gpt2/tokenization_gpt2_fast.py
   ```
   
   Expected Output:
