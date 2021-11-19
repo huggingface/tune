@@ -59,23 +59,23 @@ def plot_results(summary_df):
 def main():
     args = build_argparser().parse_args()
 
-    if not os.path.isdir(args.dirpath):
+    if not os.path.isdir(args.input_dir):
         print("ERROR: Direcotry not found..")
         return -1
-    if not os.listdir(args.dirpath):
-        print("ERROR: Empty file found in args.dirpath")
+    if not os.listdir(args.input_dir):
+        print("ERROR: No files found...")
         return -1
         
     summary_df = pd.DataFrame()
-    for file_name in os.listdir(args.dirpath):
-        csv = os.path.isfile(os.path.join(args.dirpath, file_name))
+    for file_name in os.listdir(args.input_dir):
+        csv = os.path.isfile(os.path.join(args.input_dir, file_name))
         #print("file = ", file_name)
         f_n = os.path.splitext(file_name)[0]
         #print("f_n = ", f_n)
         f_ext = os.path.splitext(file_name)[-1].lower()
         if f_ext == ".csv" and csv:
         #if csv:
-            df = pd.read_csv(os.path.join(args.dirpath, file_name))
+            df = pd.read_csv(os.path.join(args.input_dir, file_name))
             back_end = df.backend.unique()
             seq_len = df.seq_len.unique()
             batch_size = df.batch_size.unique()
