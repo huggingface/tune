@@ -1,5 +1,17 @@
-#!/usr/bin/env python
-# Copyright (c) 2014, Intel Corporation.
+#!/bin/bash
+# Copyright (c) 2019 Intel Corporation
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Author: Pradeep, Sakhamoori <pradeep.sakhamoori@intel.com>
+# Date : 11/10/2021
 
 import pandas as pd
 import sys, os
@@ -13,16 +25,16 @@ BACK_END = ['pytorch', 'openvino', 'tensorflow'] # plot_results logic only consi
 def build_argparser():
 
     usage = '''example:
-     python3 parser_plot_with_all_params.py -input '/path/to/dir with benchmark CSV files' 
-          --dirresults <optional: path to output dir to save summary_results.csv>
+     python3 parser_plot_with_all_params.py -i '/path/to/dir with benchmark CSV files' 
+          -o <optional: path to output dir to save results_summary.csv>
      '''
     
     parser = ArgumentParser(prog='parser_plot_with_all_params.py',
                             description='Arrange benchmark results for all parameter combination',
                             epilog=usage)
     args = parser.add_argument_group('Options')
-    args.add_argument('-input', '--dirpath', help='Benchmark csv files direcotry path', required=True)
-    args.add_argument('-out', '--dirresults', help='Output results summary file .csv', \
+    args.add_argument('-i', '--input_dir', help='Benchmark csv files direcotry path', required=True)
+    args.add_argument('-o', '--output_dir', help='Output results summary file .csv', \
                                 required=False, type=str, default='result_summary.csv')
     
     return parser
@@ -55,23 +67,23 @@ def plot_results(summary_df):
 def main():
     args = build_argparser().parse_args()
 
-    if not os.path.isdir(args.dirpath):
+    if not os.path.isdir(args.input_dir):
         print("ERROR: Direcotry not found..")
         return -1
-    if not os.listdir(args.dirpath):
-        print("ERROR: Empty file found in args.dirpath")
+    if not os.listdir(args.input_dir):
+        print("ERROR: Empty file found in args.input_dir")
         return -1
         
     summary_df = pd.DataFrame()
-    for file_name in os.listdir(args.dirpath):
-        csv = os.path.isfile(os.path.join(args.dirpath, file_name))
+    for file_name in os.listdir(args.input_dir):
+        csv = os.path.isfile(os.path.join(args.input_dir, file_name))
         print("file = ", file_name)
         f_n = os.path.splitext(file_name)[0]
         #print("f_n = ", f_n)
         f_ext = os.path.splitext(file_name)[-1].lower()
         if f_ext == ".csv" and csv:
         #if csv:
-            df = pd.read_csv(os.path.join(args.dirpath, file_name))
+            df = pd.read_csv(os.path.join(args.input_dir, file_name))
             back_end = df.backend.unique()
             seq_len = df.seq_len.unique()
             batch_size = df.batch_size.unique()
