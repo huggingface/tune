@@ -1,3 +1,38 @@
+## Benchmarking HF tune models
+
+```bash
+   # Clone project tune:
+   clone git clone -b ov-dev https://github.com/karkadad/tune.git
+```
+
+```bash
+   # Launhing benchmarking shell script 
+   Command line: $tune: ./scripts/launch.sh
+   Expected output: Benchmark results .csv files under "<project clone path>/tune/outputs/default/"
+```
+
+```bash
+   #Parsing results from Step 2 into single model csv file 
+   Command line: $tune/scripts: python3 launch_results_parser.py -i <project clone path>/tune/outputs/default/
+   Expected output: CSV file(s) with "<hf_model_name>.csv"
+```
+
+```bash
+   #Parsing "<hf_model_name>.csv" for benchmark plot
+   Command Line: python3 parser_with_selec_params.py -i <project clone path>/tune/scripts/.
+   Expected output: csv file with formated results table for easy plotting and visualization
+```
+ 
+  #### Note: To run GPT2/ROBERTA set below environment
+  ```bash
+  - Set ENVs
+     export GPT2_FILE=<path to python site/dist-packages for transformers>/transformers/models/gpt2/tokenization_gpt2_fast.py
+     export ROBERTA_FILE=<path to python site/dist-packages for transformers>/transformers/models/roberta/tokenization_roberta_fast.py
+  - Run below to change flags
+     sed -i '134s/False/True/' $GPT2_FILE
+     sed -i '157s/False/True/' $ROBERTA_FILE
+  ```
+
 ## HF tune model(s) benchmarking 
   Shell script "launch.sh" takes in below list of pre-populated variables and generates "outputs/default" list of folders
   with benchmarking data saved in .csv files 
