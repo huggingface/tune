@@ -62,23 +62,7 @@
   
   Python script "launch_results_parser.py" to segregate benchmark results w.r.t model vs backend vs seq_len vs batch vs num_instances
   
-  ```bash
-     ubuntu@ip:~/tune/scripts$ python3 inter_results.py --help
-     usage: inter_results.py [-h] -input DIRPATH [-out DIRRESULTS]
-     Intermediate benchmark results
-
-     optional arguments:
-      -h, --help            show this help message and exit
-
-    Options:
-      -input DIRPATH, --dirpath DIRPATH
-                        Path to root directory of csv files with model performance data
-      -out DIRRESULTS, --dirresults DIRRESULTS
-                          Output results summary file .csv
-
-   Example: python3 inter_results.py -input </path/to/root/dir/ of benchmark csv data> 
-                                     --dirresults <optional: path to output dir to save summary_results.csv>
-  ```
+ 
   
   Expected output file:
    Ex: For "bert_base_cased" HF model. A file with "bert_base_cased.csv" will be generated as shown below
@@ -95,19 +79,6 @@
 
 Python script "parser.py" does extract required fields (as shown below) for plotting benchmark results
 
-```bash
-  usage = '''example:
-     python parser.py -input '/path/to/dir with benchmark CSV files' 
-          --dirresults <optional: path to output dir to save summary_results.csv>
-     '''
-    
-    parser = ArgumentParser(prog='parser.py',
-                            description='Filter benchmark results',
-                            epilog=usage)
-    args = parser.add_argument_group('Options')
-    args.add_argument('-input', '--dirpath', help='Benchmark csv files direcotry path', required=True)
-    args.add_argument('-out', '--dirresults', help='Output results summary file .csv', required=False, type=str, default='result_summary.csv')
- ```
 Expected output results_summary.csv 
 
 |throughput |	latency_mean (ms) |	instance_id	|    seq_len	     | bs |	num_threads |	model_name      | backend  |
