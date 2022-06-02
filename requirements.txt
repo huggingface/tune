@@ -2,6 +2,7 @@ omegaconf>=2.1.0dev20
 hydra-core>=1.1.0.dev5
 torch
 tensorflow
+keras==2.6.0
 onnxruntime
 psutil
 pandas
@@ -9,3 +10,8 @@ rich
 transformers
 multiprocess
 sympy
+networkx
+defusedxml
+openvino-dev
+onnx
+coloredlogs

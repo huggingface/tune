@@ -1,0 +1,31 @@
+FROM ubuntu:20.04
+
+ENV http_proxy=http://proxy-chain.intel.com:911
+ENV https_proxy=http://proxy-chain.intel.com:911
+
+
+RUN apt update && \
+    apt install -y \
+        git \
+        vim \
+        python3 \
+        python3-pip \
+        python3-dev \
+        libnuma-dev \
+        numactl && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY . /opt/tune
+
+WORKDIR /opt/tune
+RUN python3 -m pip install -r requirements.txt
+
+# Hacky fix for roberta and gpt2
+ENV ROBERTA_FILE=/usr/local/lib/python3.8/dist-packages/transformers/models/roberta/tokenization_roberta_fast.py 
+ENV GPT2_FILE=/usr/local/lib/python3.8/dist-packages/transformers/models/gpt2/tokenization_gpt2_fast.py 
+
+RUN sed -i '157s/False/True/' $ROBERTA_FILE
+RUN sed -i '134s/False/True/' $GPT2_FILE
+
+
+

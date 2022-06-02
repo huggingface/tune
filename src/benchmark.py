@@ -75,13 +75,13 @@ class Benchmark:
         benchmarks_stats = {
             "nb_forwards": len(self.latencies),
             "throughput": self.throughput,
-            "latency_mean": np.mean(self.latencies),
-            "latency_std": np.std(self.latencies),
-            "latency_50": np.quantile(self.latencies, 0.5),
-            "latency_90": np.quantile(self.latencies, 0.9),
-            "latency_95": np.quantile(self.latencies, 0.95),
-            "latency_99": np.quantile(self.latencies, 0.99),
-            "latency_999": np.quantile(self.latencies, 0.999),
+            "latency_mean (ms)": np.mean(self.latencies) / 1e6,
+            "latency_std (ms)": np.std(self.latencies) / 1e6,
+            "latency_50 (ms)": np.quantile(self.latencies, 0.5) / 1e6,
+            "latency_90 (ms)": np.quantile(self.latencies, 0.9) / 1e6,
+            "latency_95 (ms)": np.quantile(self.latencies, 0.95) / 1e6,
+            "latency_99 (ms)": np.quantile(self.latencies, 0.99) / 1e6,
+            "latency_999 (ms)": np.quantile(self.latencies, 0.999) / 1e6,
         }
 
         if self.outputs_diff is not None:
