@@ -31,7 +31,13 @@ from backends import BackendConfig, Backend
 from benchmark import Benchmark
 from utils import SEC_TO_NS_SCALE
 
-from openvino.inference_engine import IECore, IENetwork
+try:
+    from openvino.runtime import Core, set_batch
+
+    is_openvino_api_2 = True
+except ImportError:
+    from openvino.inference_engine import IECore as Core
+    is_openvino_api_2 = False
 
 @dataclass
 class OpenVINORuntimeConfig(BackendConfig):
@@ -42,6 +48,7 @@ class OpenVINORuntimeConfig(BackendConfig):
 
     @staticmethod
     def version() -> str:
+        ie = Core()
         return ie.__version__
 
     @staticmethod
@@ -160,32 +167,42 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
         model_bin = "".join([self.ov_model_dir, os.sep, config.model, ".bin"])
 
         # Run inference
-        ie = IECore()
-        net = ie.read_network(model=model_xml, weights=model_bin)
-        net.batch_size = int(config.batch_size)
-        exec_net = ie.load_network(network=net, device_name=config.device.upper(), config=self.config)
+        ie = Core()
+        if is_openvino_api_2:
+            net = ie.read_model(model=model_xml, weights=model_bin)
+            compiled_model = ie.compile_model(model=net, device_name=config.device.upper(), config=self.config)
+            LOGGER.info(f'OpenVINO model inputs info: {compiled_model.inputs}')
+            output_layer = compiled_model.output(0)
+        else:
+            net = ie.read_network(model=model_xml, weights=model_bin)
+            net.batch_size = int(config.batch_size)
+            exec_net = ie.load_network(network=net, device_name=config.device.upper(), config=self.config)
 
-        input_name = next(iter(net.inputs))
-        output_name = next(iter(net.outputs))
+            input_name = next(iter(net.inputs))
+            output_name = next(iter(net.outputs))
+
 
         dummy_inputs = self._get_dummy_inputs(
             batch_size=config.batch_size,
             seq_len=(config.sequence_length - self.tokenizer.num_special_tokens_to_add(pair=False))
         )
         
-        inputs = self.tokenizer(
+        tokenized_inputs = self.tokenizer(
             dummy_inputs,
             is_split_into_words=True,
             return_tensors=TensorType.NUMPY,
         )
 
-        input_seqs = {k: v.astype("i8") for k, v in inputs.items()}
+        input_seqs = {k: v.astype("i8") for k, v in tokenized_inputs.items()}
         
         # Warmup
         outputs = []
         for _ in trange(config.warmup_runs, desc="Warming up"):
-            output = exec_net.infer(inputs=input_seqs)
-            outputs.append(output[output_name])
+            if is_openvino_api_2:
+                output = compiled_model(input_seqs)[output_layer]
+            else:
+                output = exec_net.infer(inputs=input_seqs)[output_name]
+            outputs.append(output)
 
         # Let's not run the benchmark for the reference backend,
         # as we are more interested in the output tensors.
@@ -195,7 +212,10 @@ class OpenVINORuntimeBackend(Backend[OpenVINORuntimeConfig]):
             benchmark_duration_ns = config.benchmark_duration * SEC_TO_NS_SCALE
             while sum(benchmark.latencies) < benchmark_duration_ns:
                 with benchmark.track():
-                    exec_net.infer(inputs=input_seqs)
+                    if is_openvino_api_2:
+                        output = compiled_model(input_seqs)[output_layer]
+                    else:
+                        output = exec_net.infer(inputs=input_seqs)[output_name]
 
             benchmark.finalize(benchmark_duration_ns)
         return benchmark, np.stack(outputs)
